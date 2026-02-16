@@ -2,7 +2,7 @@
 const nextConfig = {
     transpilePackages: ['@halalspot/shared-types', '@halalspot/supabase'],
     images: {
-        domains: ['your-supabase-project.supabase.co'],
+        domains: ['your-supabase-project.supabase.co', 'images.unsplash.com'],
     },
     experimental: {
         serverActions: {
