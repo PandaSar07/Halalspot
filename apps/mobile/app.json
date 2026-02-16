@@ -1,0 +1,64 @@
+{
+    "expo": {
+        "name": "HalalSpot",
+        "slug": "halalspot",
+        "version": "1.0.0",
+        "orientation": "portrait",
+        "icon": "./assets/icon.png",
+        "userInterfaceStyle": "automatic",
+        "splash": {
+            "image": "./assets/splash.png",
+            "resizeMode": "contain",
+            "backgroundColor": "#ffffff"
+        },
+        "assetBundlePatterns": [
+            "**/*"
+        ],
+        "ios": {
+            "supportsTablet": true,
+            "bundleIdentifier": "com.halalspot.app",
+            "infoPlist": {
+                "NSLocationWhenInUseUsageDescription": "HalalSpot needs your location to show nearby halal restaurants."
+            }
+        },
+        "android": {
+            "adaptiveIcon": {
+                "foregroundImage": "./assets/adaptive-icon.png",
+                "backgroundColor": "#ffffff"
+            },
+            "package": "com.halalspot.app",
+            "permissions": [
+                "ACCESS_COARSE_LOCATION",
+                "ACCESS_FINE_LOCATION"
+            ]
+        },
+        "web": {
+            "favicon": "./assets/favicon.png"
+        },
+        "plugins": [
+            "expo-router",
+            "expo-secure-store",
+            [
+                "expo-location",
+                {
+                    "locationAlwaysAndWhenInUsePermission": "Allow HalalSpot to use your location to find nearby halal restaurants."
+                }
+            ],
+            [
+                "@rnmapbox/maps",
+                {
+                    "RNMapboxMapsDownloadToken": "MAPBOX_DOWNLOADS_TOKEN_PLACEHOLDER"
+                }
+            ]
+        ],
+        "scheme": "halalspot",
+        "extra": {
+            "router": {
+                "origin": false
+            },
+            "eas": {
+                "projectId": "your-eas-project-id"
+            }
+        }
+    }
+}

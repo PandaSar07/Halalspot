@@ -1,0 +1,123 @@
+import type { SupabaseClient } from './client';
+import type { Coordinates, RestaurantWithDistance } from '@halalspot/shared-types';
+
+/**
+ * Query nearby restaurants using PostGIS
+ */
+export async function getNearbyRestaurants(
+    client: SupabaseClient,
+    coordinates: Coordinates,
+    radiusMeters: number = 5000
+): Promise<RestaurantWithDistance[]> {
+    const { data, error } = await client.rpc('nearby_restaurants', {
+        lat: coordinates.latitude,
+        lng: coordinates.longitude,
+        radius_meters: radiusMeters,
+    });
+
+    if (error) throw error;
+    return data || [];
+}
+
+/**
+ * Get a single restaurant by ID with average rating
+ */
+export async function getRestaurantById(client: SupabaseClient, id: string) {
+    const { data: restaurant, error: restaurantError } = await client
+        .from('restaurants')
+        .select('*')
+        .eq('id', id)
+        .single();
+
+    if (restaurantError) throw restaurantError;
+
+    const { data: avgRating } = await client.rpc('restaurant_avg_rating', {
+        restaurant_id: id,
+    });
+
+    return {
+        ...restaurant,
+        avg_rating: avgRating || 0,
+    };
+}
+
+/**
+ * Get reviews for a restaurant
+ */
+export async function getRestaurantReviews(client: SupabaseClient, restaurantId: string) {
+    const { data, error } = await client
+        .from('reviews')
+        .select(`
+      *,
+      user:users(id, full_name, avatar_url)
+    `)
+        .eq('restaurant_id', restaurantId)
+        .order('created_at', { ascending: false });
+
+    if (error) throw error;
+    return data || [];
+}
+
+/**
+ * Get user's favorite restaurants
+ */
+export async function getUserFavorites(client: SupabaseClient, userId: string) {
+    const { data, error } = await client
+        .from('favorites')
+        .select(`
+      *,
+      restaurant:restaurants(*)
+    `)
+        .eq('user_id', userId)
+        .order('created_at', { ascending: false });
+
+    if (error) throw error;
+    return data || [];
+}
+
+/**
+ * Check if a restaurant is favorited by the user
+ */
+export async function isRestaurantFavorited(
+    client: SupabaseClient,
+    userId: string,
+    restaurantId: string
+): Promise<boolean> {
+    const { data, error } = await client
+        .from('favorites')
+        .select('id')
+        .eq('user_id', userId)
+        .eq('restaurant_id', restaurantId)
+        .single();
+
+    return !error && !!data;
+}
+
+/**
+ * Toggle favorite status for a restaurant
+ */
+export async function toggleFavorite(
+    client: SupabaseClient,
+    userId: string,
+    restaurantId: string
+): Promise<boolean> {
+    const isFavorited = await isRestaurantFavorited(client, userId, restaurantId);
+
+    if (isFavorited) {
+        const { error } = await client
+            .from('favorites')
+            .delete()
+            .eq('user_id', userId)
+            .eq('restaurant_id', restaurantId);
+
+        if (error) throw error;
+        return false;
+    } else {
+        const { error } = await client
+            .from('favorites')
+            .insert({ user_id: userId, restaurant_id: restaurantId });
+
+        if (error) throw error;
+        return true;
+    }
+}
