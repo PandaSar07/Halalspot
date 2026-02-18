@@ -1,25 +1,38 @@
 {
-    "name": "halalspot",
-    "version": "1.0.0",
-    "private": true,
-    "description": "HalalSpot - Halal Restaurant Discovery Platform",
-    "scripts": {
-        "dev": "turbo run dev",
-        "build": "turbo run build",
-        "lint": "turbo run lint",
-        "type-check": "turbo run type-check",
-        "clean": "turbo run clean && rm -rf node_modules",
-        "format": "prettier --write \"**/*.{ts,tsx,md,json}\"",
-        "db:generate-types": "pnpm --filter @halalspot/shared-types generate-types"
-    },
-    "devDependencies": {
-        "prettier": "^3.2.5",
-        "turbo": "^1.12.4",
-        "typescript": "^5.3.3"
-    },
-    "packageManager": "pnpm@8.15.1",
-    "engines": {
-        "node": ">=18.0.0",
-        "pnpm": ">=8.0.0"
-    }
+  "name": "halalspot",
+  "version": "1.0.0",
+  "private": true,
+  "description": "HalalSpot - Halal Restaurant Discovery Platform",
+  "scripts": {
+    "dev": "turbo run dev",
+    "build": "turbo run build",
+    "lint": "turbo run lint",
+    "type-check": "turbo run type-check",
+    "clean": "turbo run clean && rm -rf node_modules",
+    "format": "prettier --write \"**/*.{ts,tsx,md,json}\"",
+    "db:generate-types": "pnpm --filter @halalspot/shared-types generate-types"
+  },
+  "devDependencies": {
+    "@types/react": "~19.1.10",
+    "prettier": "^3.2.5",
+    "turbo": "^1.12.4",
+    "typescript": "^5.3.3"
+  },
+  "packageManager": "pnpm@8.15.1",
+  "engines": {
+    "node": ">=18.0.0",
+    "pnpm": ">=8.0.0"
+  },
+  "dependencies": {
+    "expo": "^54.0.33",
+    "expo-linear-gradient": "~15.0.8",
+    "expo-linking": "~8.0.11",
+    "expo-router": "~6.0.23",
+    "expo-status-bar": "~3.0.9",
+    "react": "^19.1.0",
+    "react-native": "^0.81.5",
+    "react-native-safe-area-context": "~5.6.0",
+    "react-native-screens": "~4.16.0",
+    "react-native-web": "^0.21.2"
+  }
 }
