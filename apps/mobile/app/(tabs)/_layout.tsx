@@ -5,16 +5,38 @@ export default function TabLayout() {
     return (
         <Tabs
             screenOptions={{
-                tabBarActiveTintColor: '#22c55e',
+                tabBarActiveTintColor: '#10b981',
+                tabBarInactiveTintColor: '#9ca3af',
+                tabBarStyle: {
+                    backgroundColor: '#ffffff',
+                    borderTopWidth: 1,
+                    borderTopColor: '#f3f4f6',
+                    height: 90,
+                    paddingBottom: 30,
+                    paddingTop: 10,
+                },
+                tabBarLabelStyle: {
+                    fontSize: 12,
+                    fontWeight: '600',
+                },
                 headerShown: false,
             }}
         >
             <Tabs.Screen
                 name="index"
                 options={{
+                    title: 'Home',
+                    tabBarIcon: ({ color, size }) => (
+                        <Ionicons name="home" size={size} color={color} />
+                    ),
+                }}
+            />
+            <Tabs.Screen
+                name="explore"
+                options={{
                     title: 'Explore',
                     tabBarIcon: ({ color, size }) => (
-                        <Ionicons name="map-outline" size={size} color={color} />
+                        <Ionicons name="search" size={size} color={color} />
                     ),
                 }}
             />
@@ -23,7 +45,7 @@ export default function TabLayout() {
                 options={{
                     title: 'Favorites',
                     tabBarIcon: ({ color, size }) => (
-                        <Ionicons name="heart-outline" size={size} color={color} />
+                        <Ionicons name="heart" size={size} color={color} />
                     ),
                 }}
             />
@@ -32,7 +54,7 @@ export default function TabLayout() {
                 options={{
                     title: 'Profile',
                     tabBarIcon: ({ color, size }) => (
-                        <Ionicons name="person-outline" size={size} color={color} />
+                        <Ionicons name="person" size={size} color={color} />
                     ),
                 }}
             />
