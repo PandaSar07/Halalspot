@@ -1,21 +1,22 @@
 import { Tabs } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { View, StyleSheet, Platform } from 'react-native';
-import { Colors } from '../../src/lib/theme';
+import { View, StyleSheet } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useTheme } from '../../src/lib/ThemeContext';
 
 export default function TabLayout() {
     const insets = useSafeAreaInsets();
-    
+    const { theme } = useTheme();
+
     return (
         <Tabs
-            screenOptions={({route}) => ({
-                tabBarActiveTintColor: Colors.primary,
-                tabBarInactiveTintColor: Colors.textMuted,
+            screenOptions={{
+                tabBarActiveTintColor: theme.primary,
+                tabBarInactiveTintColor: theme.textMuted,
                 tabBarStyle: {
-                    backgroundColor: '#141414',
+                    backgroundColor: theme.tabBar,
                     borderTopWidth: 1,
-                    borderTopColor: Colors.border,
+                    borderTopColor: theme.tabBorder,
                     height: 60 + insets.bottom,
                     paddingBottom: insets.bottom,
                     paddingTop: 8,
@@ -26,17 +27,14 @@ export default function TabLayout() {
                     marginTop: 0,
                 },
                 headerShown: false,
-                tabBarIndicatorStyle: {
-                    backgroundColor: Colors.primary,
-                },
-            })}
+            }}
         >
             <Tabs.Screen
                 name="index"
                 options={{
                     title: 'Home',
                     tabBarIcon: ({ color, focused }) => (
-                        <View style={[styles.iconWrap, focused && styles.iconWrapActive]}>
+                        <View style={[styles.iconWrap, focused && { backgroundColor: theme.primaryDim }]}>
                             <Ionicons name={focused ? 'home' : 'home-outline'} size={22} color={color} />
                         </View>
                     ),
@@ -47,7 +45,7 @@ export default function TabLayout() {
                 options={{
                     title: 'Explore',
                     tabBarIcon: ({ color, focused }) => (
-                        <View style={[styles.iconWrap, focused && styles.iconWrapActive]}>
+                        <View style={[styles.iconWrap, focused && { backgroundColor: theme.primaryDim }]}>
                             <Ionicons name={focused ? 'search' : 'search-outline'} size={22} color={color} />
                         </View>
                     ),
@@ -58,7 +56,7 @@ export default function TabLayout() {
                 options={{
                     title: 'Saved',
                     tabBarIcon: ({ color, focused }) => (
-                        <View style={[styles.iconWrap, focused && styles.iconWrapActive]}>
+                        <View style={[styles.iconWrap, focused && { backgroundColor: theme.primaryDim }]}>
                             <Ionicons name={focused ? 'heart' : 'heart-outline'} size={22} color={color} />
                         </View>
                     ),
@@ -69,7 +67,7 @@ export default function TabLayout() {
                 options={{
                     title: 'Profile',
                     tabBarIcon: ({ color, focused }) => (
-                        <View style={[styles.iconWrap, focused && styles.iconWrapActive]}>
+                        <View style={[styles.iconWrap, focused && { backgroundColor: theme.primaryDim }]}>
                             <Ionicons name={focused ? 'person' : 'person-outline'} size={22} color={color} />
                         </View>
                     ),
@@ -81,13 +79,8 @@ export default function TabLayout() {
 
 const styles = StyleSheet.create({
     iconWrap: {
-        width: 36,
-        height: 36,
-        alignItems: 'center',
-        justifyContent: 'center',
+        width: 36, height: 36,
+        alignItems: 'center', justifyContent: 'center',
         borderRadius: 10,
-    },
-    iconWrapActive: {
-        backgroundColor: 'rgba(0, 201, 107, 0.12)',
     },
 });

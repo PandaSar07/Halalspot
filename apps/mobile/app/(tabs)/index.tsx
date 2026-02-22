@@ -1,8 +1,7 @@
 import { useState, useEffect } from 'react';
 import {
     View, Text, ScrollView, StyleSheet, TouchableOpacity,
-    Image, Dimensions, ActivityIndicator, Animated,
-    Pressable,
+    Image, Dimensions, ActivityIndicator, Animated, Pressable,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -10,13 +9,12 @@ import { LinearGradient } from 'expo-linear-gradient';
 import * as Location from 'expo-location';
 import { supabase } from '../../src/lib/supabase';
 import { getNearbyRestaurants } from '@halalspot/supabase';
-import { getCertificationColor } from '../../src/lib/utils';
-import { Colors, Radius, Shadow } from '../../src/lib/theme';
+import { Radius, Shadow } from '../../src/lib/theme';
+import { useTheme } from '../../src/lib/ThemeContext';
 import type { RestaurantWithDistance } from '@halalspot/shared-types';
 
 const { width } = Dimensions.get('window');
 const CARD_WIDTH = width * 0.62;
-
 const DEFAULT_COORDS = { latitude: 39.9526, longitude: -75.1652 };
 
 const CERT_LABELS: Record<string, string> = {
@@ -25,14 +23,9 @@ const CERT_LABELS: Record<string, string> = {
     halal_options: '◉ Halal Options',
 };
 
-const CERT_COLORS: Record<string, string> = {
-    halal_certified: Colors.certHalal,
-    muslim_owned: Colors.certMuslim,
-    halal_options: Colors.certOptions,
-};
-
 export default function HomeScreen() {
     const router = useRouter();
+    const { theme } = useTheme();
     const [sections, setSections] = useState<{
         topRated: RestaurantWithDistance[];
         nearYou: RestaurantWithDistance[];
@@ -77,7 +70,6 @@ export default function HomeScreen() {
                 supabase.from('restaurants').select('*', { count: 'exact', head: true }).eq('certification_type', 'halal_certified'),
             ]);
             setStats({ total: total || 0, certified: certified || 0 });
-
             let all: RestaurantWithDistance[] = [];
             try {
                 all = await getNearbyRestaurants(supabase, coords, 15000);
@@ -85,14 +77,12 @@ export default function HomeScreen() {
                 const { data } = await supabase.from('restaurants').select('*').eq('status', 'approved');
                 all = (data || []) as RestaurantWithDistance[];
             }
-
             const cuisineGroups: Record<string, RestaurantWithDistance[]> = {};
             all.forEach(r => {
                 const c = (r as any).cuisine || 'Other';
                 if (!cuisineGroups[c]) cuisineGroups[c] = [];
                 if (cuisineGroups[c].length < 8) cuisineGroups[c].push(r);
             });
-
             setSections({
                 topRated: [...all].sort((a, b) => (b.avg_rating || 0) - (a.avg_rating || 0)).slice(0, 10),
                 nearYou: all.slice(0, 10),
@@ -109,97 +99,89 @@ export default function HomeScreen() {
 
     if (loading) {
         return (
-            <View style={styles.loadingContainer}>
-                <ActivityIndicator size="large" color={Colors.primary} />
-                <Text style={styles.loadingText}>Finding spots near you…</Text>
+            <View style={[styles.loadingContainer, { backgroundColor: theme.bg }]}>
+                <ActivityIndicator size="large" color={theme.primary} />
+                <Text style={[styles.loadingText, { color: theme.textSecondary }]}>Finding spots near you…</Text>
             </View>
         );
     }
 
     return (
-        <ScrollView style={styles.container} contentContainerStyle={{ paddingBottom: 30 }} showsVerticalScrollIndicator={false}>
-            {/* ─── Hero ─── */}
-            <LinearGradient
-                colors={['#0F2018', '#0F0F0F']}
-                style={styles.hero}
-            >
-                {/* Mesh dots overlay */}
-                <View style={styles.meshOverlay} pointerEvents="none" />
-
+        <ScrollView style={[styles.container, { backgroundColor: theme.bg }]} contentContainerStyle={{ paddingBottom: 30 }} showsVerticalScrollIndicator={false}>
+            {/* Hero */}
+            <LinearGradient colors={theme.heroBg} style={styles.hero}>
                 <View style={styles.heroPill}>
-                    <View style={styles.heroPillDot} />
-                    <Text style={styles.heroPillText}>{stats.total} Spots in Philly</Text>
+                    <View style={[styles.heroPillDot, { backgroundColor: theme.primary }]} />
+                    <Text style={[styles.heroPillText, { color: theme.primary }]}>{stats.total} Spots in Philly</Text>
                 </View>
                 <Text style={styles.heroLogo}>HalalSpot</Text>
                 <Text style={styles.heroTagline}>The finest halal dining in Philadelphia</Text>
-
                 <TouchableOpacity
-                    style={styles.heroSearch}
+                    style={[styles.heroSearch, { backgroundColor: theme.bgCard, borderColor: theme.border }]}
                     activeOpacity={0.85}
                     onPress={() => router.push('/(tabs)/explore')}
                 >
-                    <Ionicons name="search-outline" size={18} color={Colors.textSecondary} />
-                    <Text style={styles.heroSearchText}>Restaurants, cuisines…</Text>
-                    <View style={styles.heroSearchFilter}>
-                        <Ionicons name="options-outline" size={16} color={Colors.primary} />
+                    <Ionicons name="search-outline" size={18} color={theme.textSecondary} />
+                    <Text style={[styles.heroSearchText, { color: theme.textMuted }]}>Restaurants, cuisines…</Text>
+                    <View style={[styles.heroSearchFilter, { backgroundColor: theme.primaryDim }]}>
+                        <Ionicons name="options-outline" size={16} color={theme.primary} />
                     </View>
                 </TouchableOpacity>
             </LinearGradient>
 
-            {/* ─── Stats ─── */}
+            {/* Stats */}
             <View style={styles.statsRow}>
-                <StatCard icon="storefront-outline" value={String(stats.total)} label="Places" />
-                <StatCard icon="shield-checkmark-outline" value={String(stats.certified)} label="Certified" color={Colors.primary} />
-                <StatCard icon="location-outline" value="Philly" label="City" color={Colors.gold} />
+                <StatCard icon="storefront-outline" value={String(stats.total)} label="Places" theme={theme} />
+                <StatCard icon="shield-checkmark-outline" value={String(stats.certified)} label="Certified" color={theme.primary} theme={theme} />
+                <StatCard icon="location-outline" value="Philly" label="City" color={theme.gold} theme={theme} />
             </View>
 
-            {/* ─── Sections ─── */}
-            <Section title="⭐  Top Rated" data={sections.topRated} router={router} />
-            <Section title="📍  Near You" data={sections.nearYou} router={router} showDistance />
-            <Section title="🕒  Open Now" data={sections.openNow} router={router} />
-            <Section title="🕌  Halal Certified" data={sections.fullyCertified} router={router} />
+            {/* Sections */}
+            <Section title="⭐  Top Rated" data={sections.topRated} router={router} theme={theme} />
+            <Section title="📍  Near You" data={sections.nearYou} router={router} theme={theme} showDistance />
+            <Section title="🕒  Open Now" data={sections.openNow} router={router} theme={theme} />
+            <Section title="🕌  Halal Certified" data={sections.fullyCertified} router={router} theme={theme} />
             {Object.entries(sections.cuisines).map(([cuisine, data]) => (
-                data.length >= 3 && <Section key={cuisine} title={`🍽  ${cuisine}`} data={data} router={router} />
+                data.length >= 3 && <Section key={cuisine} title={`🍽  ${cuisine}`} data={data} router={router} theme={theme} />
             ))}
         </ScrollView>
     );
 }
 
-// ─── Sub-components ────────────────────────────────────────────────────────
-
-function StatCard({ icon, value, label, color }: { icon: any; value: string; label: string; color?: string }) {
+function StatCard({ icon, value, label, color, theme }: { icon: any; value: string; label: string; color?: string; theme: any }) {
     return (
-        <View style={styles.statCard}>
-            <Ionicons name={icon} size={20} color={color || Colors.textSecondary} />
-            <Text style={[styles.statValue, color ? { color } : {}]}>{value}</Text>
-            <Text style={styles.statLabel}>{label}</Text>
+        <View style={[styles.statCard, { backgroundColor: theme.bgCard, borderColor: theme.border }]}>
+            <Ionicons name={icon} size={20} color={color || theme.textSecondary} />
+            <Text style={[styles.statValue, { color: color || theme.textPrimary }]}>{value}</Text>
+            <Text style={[styles.statLabel, { color: theme.textMuted }]}>{label}</Text>
         </View>
     );
 }
 
-function Section({ title, data, router, showDistance }: { title: string; data: RestaurantWithDistance[]; router: any; showDistance?: boolean }) {
+function Section({ title, data, router, theme, showDistance }: { title: string; data: RestaurantWithDistance[]; router: any; theme: any; showDistance?: boolean }) {
     if (data.length === 0) return null;
     return (
         <View style={styles.section}>
             <View style={styles.sectionHeader}>
                 <View style={styles.sectionTitleRow}>
-                    <View style={styles.sectionAccent} />
-                    <Text style={styles.sectionTitle}>{title}</Text>
+                    <View style={[styles.sectionAccent, { backgroundColor: theme.primary }]} />
+                    <Text style={[styles.sectionTitle, { color: theme.textPrimary }]}>{title}</Text>
                 </View>
                 <TouchableOpacity onPress={() => router.push('/(tabs)/explore')}>
-                    <Text style={styles.seeAll}>See all →</Text>
+                    <Text style={[styles.seeAll, { color: theme.primary }]}>See all →</Text>
                 </TouchableOpacity>
             </View>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.horizontalList}>
-                {data.map(r => <RestaurantCard key={r.id} restaurant={r} showDistance={showDistance} />)}
+                {data.map(r => <RestaurantCard key={r.id} restaurant={r} theme={theme} showDistance={showDistance} />)}
             </ScrollView>
         </View>
     );
 }
 
-function RestaurantCard({ restaurant, showDistance }: { restaurant: RestaurantWithDistance; showDistance?: boolean }) {
+function RestaurantCard({ restaurant, theme, showDistance }: { restaurant: RestaurantWithDistance; theme: any; showDistance?: boolean }) {
     const scale = new Animated.Value(1);
-    const certColor = CERT_COLORS[restaurant.certification_type] || Colors.primary;
+    const certColors: Record<string, string> = { halal_certified: theme.certHalal, muslim_owned: theme.certMuslim, halal_options: theme.certOptions };
+    const certColor = certColors[restaurant.certification_type] || theme.primary;
     const certLabel = CERT_LABELS[restaurant.certification_type] || 'Halal';
 
     return (
@@ -207,28 +189,21 @@ function RestaurantCard({ restaurant, showDistance }: { restaurant: RestaurantWi
             onPressIn={() => Animated.spring(scale, { toValue: 0.97, useNativeDriver: true }).start()}
             onPressOut={() => Animated.spring(scale, { toValue: 1, useNativeDriver: true }).start()}
         >
-            <Animated.View style={[styles.card, { transform: [{ scale }] }]}>
+            <Animated.View style={[styles.card, { backgroundColor: theme.bgCard, transform: [{ scale }] }]}>
                 <Image
                     source={{ uri: restaurant.image_url || 'https://images.unsplash.com/photo-1555939594-58d7cb561ad1?w=800&h=500&fit=crop' }}
                     style={styles.cardImage}
                 />
-                {/* Gradient scrim */}
-                <LinearGradient
-                    colors={['transparent', 'rgba(0,0,0,0.82)']}
-                    style={styles.cardScrim}
-                >
-                    {/* Cert badge */}
+                <LinearGradient colors={['transparent', 'rgba(0,0,0,0.82)']} style={styles.cardScrim}>
                     <View style={[styles.certBadge, { borderColor: certColor + '55', backgroundColor: certColor + '22' }]}>
                         <Text style={[styles.certBadgeText, { color: certColor }]}>{certLabel}</Text>
                     </View>
                     <Text style={styles.cardName} numberOfLines={1}>{restaurant.name}</Text>
                     <View style={styles.cardMeta}>
-                        <Ionicons name="star" size={12} color={Colors.gold} />
-                        <Text style={styles.cardRating}>{(restaurant.avg_rating || 0).toFixed(1)}</Text>
+                        <Ionicons name="star" size={12} color={theme.gold} />
+                        <Text style={[styles.cardRating, { color: theme.gold }]}>{(restaurant.avg_rating || 0).toFixed(1)}</Text>
                         {showDistance && restaurant.distance_meters ? (
-                            <Text style={styles.cardDistance}>
-                                · {(restaurant.distance_meters * 0.000621371).toFixed(1)} mi
-                            </Text>
+                            <Text style={styles.cardDistance}>· {(restaurant.distance_meters * 0.000621371).toFixed(1)} mi</Text>
                         ) : null}
                     </View>
                 </LinearGradient>
@@ -237,128 +212,37 @@ function RestaurantCard({ restaurant, showDistance }: { restaurant: RestaurantWi
     );
 }
 
-// ─── Styles ─────────────────────────────────────────────────────────────────
-
 const styles = StyleSheet.create({
-    container: { flex: 1, backgroundColor: Colors.bg },
-    loadingContainer: { flex: 1, backgroundColor: Colors.bg, justifyContent: 'center', alignItems: 'center', gap: 14 },
-    loadingText: { color: Colors.textSecondary, fontSize: 14, fontFamily: 'Outfit' },
-
-    // Hero
-    hero: {
-        paddingTop: 70,
-        paddingBottom: 36,
-        paddingHorizontal: 20,
-        gap: 10,
-    },
-    meshOverlay: {
-        ...StyleSheet.absoluteFillObject,
-        opacity: 0.04,
-    },
-    heroPill: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        alignSelf: 'flex-start',
-        gap: 6,
-        paddingHorizontal: 12,
-        paddingVertical: 6,
-        backgroundColor: Colors.primaryDim,
-        borderRadius: Radius.pill,
-        borderWidth: 1,
-        borderColor: Colors.primary + '44',
-        marginBottom: 4,
-    },
-    heroPillDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: Colors.primary },
-    heroPillText: { color: Colors.primary, fontSize: 12, fontFamily: 'Outfit-SemiBold' },
-    heroLogo: {
-        fontSize: 44,
-        color: Colors.textPrimary,
-        fontFamily: 'DMSerifDisplay',
-        letterSpacing: -1.5,
-        lineHeight: 50,
-    },
-    heroTagline: { color: Colors.textSecondary, fontSize: 14, fontFamily: 'Outfit', marginBottom: 8 },
-    heroSearch: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        backgroundColor: Colors.bgElevated,
-        paddingHorizontal: 16,
-        paddingVertical: 14,
-        borderRadius: Radius.pill,
-        borderWidth: 1,
-        borderColor: Colors.border,
-        gap: 10,
-        marginTop: 6,
-    },
-    heroSearchText: { flex: 1, color: Colors.textMuted, fontSize: 14, fontFamily: 'Outfit' },
-    heroSearchFilter: {
-        width: 32,
-        height: 32,
-        borderRadius: 16,
-        backgroundColor: Colors.primaryDim,
-        alignItems: 'center',
-        justifyContent: 'center',
-    },
-
-    // Stats
-    statsRow: {
-        flexDirection: 'row',
-        marginHorizontal: 20,
-        marginTop: -20,
-        gap: 10,
-    },
-    statCard: {
-        flex: 1,
-        backgroundColor: Colors.bgCard,
-        borderRadius: Radius.lg,
-        paddingVertical: 14,
-        paddingHorizontal: 10,
-        alignItems: 'center',
-        gap: 4,
-        borderWidth: 1,
-        borderColor: Colors.border,
-        ...Shadow.card,
-    },
-    statValue: { fontSize: 17, fontWeight: '800', color: Colors.textPrimary, fontFamily: 'Outfit' },
-    statLabel: { fontSize: 10, color: Colors.textMuted, fontFamily: 'Outfit', textTransform: 'uppercase', letterSpacing: 0.5 },
-
-    // Section
+    container: { flex: 1 },
+    loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', gap: 14 },
+    loadingText: { fontSize: 14, fontFamily: 'Outfit' },
+    hero: { paddingTop: 70, paddingBottom: 36, paddingHorizontal: 20, gap: 10 },
+    heroPill: { flexDirection: 'row', alignItems: 'center', alignSelf: 'flex-start', gap: 6, paddingHorizontal: 12, paddingVertical: 6, backgroundColor: 'rgba(0,201,107,0.15)', borderRadius: 100, borderWidth: 1, borderColor: 'rgba(0,201,107,0.35)', marginBottom: 4 },
+    heroPillDot: { width: 7, height: 7, borderRadius: 4 },
+    heroPillText: { fontSize: 12, fontFamily: 'Outfit-SemiBold' },
+    heroLogo: { fontSize: 44, color: '#fff', fontFamily: 'DMSerifDisplay', letterSpacing: -1.5, lineHeight: 50 },
+    heroTagline: { color: 'rgba(255,255,255,0.85)', fontSize: 14, fontFamily: 'Outfit', marginBottom: 8 },
+    heroSearch: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 14, borderRadius: 100, borderWidth: 1, gap: 10, marginTop: 6 },
+    heroSearchText: { flex: 1, fontSize: 14, fontFamily: 'Outfit' },
+    heroSearchFilter: { width: 32, height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
+    statsRow: { flexDirection: 'row', marginHorizontal: 20, marginTop: -20, gap: 10 },
+    statCard: { flex: 1, borderRadius: 20, paddingVertical: 14, paddingHorizontal: 10, alignItems: 'center', gap: 4, borderWidth: 1, ...Shadow.card },
+    statValue: { fontSize: 17, fontWeight: '800', fontFamily: 'Outfit' },
+    statLabel: { fontSize: 10, fontFamily: 'Outfit', textTransform: 'uppercase', letterSpacing: 0.5 },
     section: { marginTop: 30 },
     sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, marginBottom: 14 },
     sectionTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-    sectionAccent: { width: 3, height: 20, backgroundColor: Colors.primary, borderRadius: 2 },
-    sectionTitle: { fontSize: 18, fontWeight: '800', color: Colors.textPrimary, fontFamily: 'Outfit-SemiBold' },
-    seeAll: { fontSize: 13, color: Colors.primary, fontFamily: 'Outfit-SemiBold' },
+    sectionAccent: { width: 3, height: 20, borderRadius: 2 },
+    sectionTitle: { fontSize: 18, fontWeight: '800', fontFamily: 'Outfit-SemiBold' },
+    seeAll: { fontSize: 13, fontFamily: 'Outfit-SemiBold' },
     horizontalList: { paddingLeft: 20, paddingRight: 8, gap: 14 },
-
-    // Card
-    card: {
-        width: CARD_WIDTH,
-        height: CARD_WIDTH * 0.72,
-        borderRadius: Radius.xl,
-        overflow: 'hidden',
-        backgroundColor: Colors.bgCard,
-        ...Shadow.card,
-    },
+    card: { width: CARD_WIDTH, height: CARD_WIDTH * 0.72, borderRadius: 28, overflow: 'hidden', ...Shadow.card },
     cardImage: { width: '100%', height: '100%', position: 'absolute' },
-    cardScrim: {
-        position: 'absolute',
-        bottom: 0, left: 0, right: 0,
-        padding: 12,
-        paddingTop: 30,
-        gap: 4,
-    },
-    certBadge: {
-        alignSelf: 'flex-start',
-        paddingHorizontal: 8,
-        paddingVertical: 3,
-        borderRadius: Radius.pill,
-        borderWidth: 1,
-        marginBottom: 4,
-    },
+    cardScrim: { position: 'absolute', bottom: 0, left: 0, right: 0, padding: 12, paddingTop: 30, gap: 4 },
+    certBadge: { alignSelf: 'flex-start', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 100, borderWidth: 1, marginBottom: 4 },
     certBadgeText: { fontSize: 10, fontFamily: 'Outfit-SemiBold' },
     cardName: { color: '#fff', fontSize: 15, fontFamily: 'Outfit-SemiBold', fontWeight: '700' },
     cardMeta: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-    cardRating: { color: Colors.gold, fontSize: 12, fontFamily: 'Outfit-SemiBold' },
+    cardRating: { fontSize: 12, fontFamily: 'Outfit-SemiBold' },
     cardDistance: { color: 'rgba(255,255,255,0.6)', fontSize: 12, fontFamily: 'Outfit' },
 });
