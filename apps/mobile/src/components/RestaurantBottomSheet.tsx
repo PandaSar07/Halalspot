@@ -73,6 +73,10 @@ export default function RestaurantBottomSheet({ restaurant, onClose }: Props) {
         ]).start(() => onClose());
     };
 
+    // Keep a live ref to dismiss so PanResponder (created once) always calls the fresh version
+    const dismissRef = useRef(dismiss);
+    dismissRef.current = dismiss;
+
     const loadMenu = async () => {
         if (!restaurant) return;
         try {
@@ -90,18 +94,23 @@ export default function RestaurantBottomSheet({ restaurant, onClose }: Props) {
         }
     };
 
-    // Swipe down to dismiss
+    // Swipe down to dismiss — uses dismissRef so it's never stale
     const panResponder = useRef(PanResponder.create({
-        onMoveShouldSetPanResponder: (_, { dy }) => dy > 8,
+        // Immediately claim the gesture when the handle area is touched
+        onStartShouldSetPanResponder: () => true,
+        onMoveShouldSetPanResponder: (_, { dy }) => dy > 4,
         onPanResponderMove: (_, { dy }) => {
             if (dy > 0) dragY.setValue(dy);
         },
         onPanResponderRelease: (_, { dy, vy }) => {
-            if (dy > 120 || vy > 1.5) {
-                dismiss();
+            if (dy > 100 || vy > 1.2) {
+                dismissRef.current();
             } else {
-                Animated.spring(dragY, { toValue: 0, useNativeDriver: true }).start();
+                Animated.spring(dragY, { toValue: 0, useNativeDriver: true, damping: 18 }).start();
             }
+        },
+        onPanResponderTerminate: () => {
+            Animated.spring(dragY, { toValue: 0, useNativeDriver: true, damping: 18 }).start();
         },
     })).current;
 
