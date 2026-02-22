@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import {
     View, Text, ScrollView, StyleSheet, TouchableOpacity,
     Image, Dimensions, ActivityIndicator, Animated, Pressable,
@@ -7,10 +7,12 @@ import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Location from 'expo-location';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { supabase } from '../../src/lib/supabase';
 import { getNearbyRestaurants } from '@halalspot/supabase';
 import { Radius, Shadow } from '../../src/lib/theme';
 import { useTheme } from '../../src/lib/ThemeContext';
+import RestaurantBottomSheet from '../../src/components/RestaurantBottomSheet';
 import type { RestaurantWithDistance } from '@halalspot/shared-types';
 
 const { width } = Dimensions.get('window');
@@ -35,6 +37,7 @@ export default function HomeScreen() {
     }>({ topRated: [], nearYou: [], openNow: [], fullyCertified: [], cuisines: {} });
     const [loading, setLoading] = useState(true);
     const [stats, setStats] = useState({ total: 0, certified: 0 });
+    const [selectedRestaurant, setSelectedRestaurant] = useState<RestaurantWithDistance | null>(null);
 
     useEffect(() => {
         (async () => {
@@ -97,6 +100,10 @@ export default function HomeScreen() {
         }
     };
 
+    const handleCardPress = useCallback((restaurant: RestaurantWithDistance) => {
+        setSelectedRestaurant(restaurant);
+    }, []);
+
     if (loading) {
         return (
             <View style={[styles.loadingContainer, { backgroundColor: theme.bg }]}>
@@ -107,44 +114,53 @@ export default function HomeScreen() {
     }
 
     return (
-        <ScrollView style={[styles.container, { backgroundColor: theme.bg }]} contentContainerStyle={{ paddingBottom: 30 }} showsVerticalScrollIndicator={false}>
-            {/* Hero */}
-            <LinearGradient colors={theme.heroBg} style={styles.hero}>
-                <View style={styles.heroPill}>
-                    <View style={[styles.heroPillDot, { backgroundColor: theme.primary }]} />
-                    <Text style={[styles.heroPillText, { color: theme.primary }]}>{stats.total} Spots in Philly</Text>
-                </View>
-                <Text style={styles.heroLogo}>HalalSpot</Text>
-                <Text style={styles.heroTagline}>The finest halal dining in Philadelphia</Text>
-                <TouchableOpacity
-                    style={[styles.heroSearch, { backgroundColor: theme.bgCard, borderColor: theme.border }]}
-                    activeOpacity={0.85}
-                    onPress={() => router.push('/(tabs)/explore')}
-                >
-                    <Ionicons name="search-outline" size={18} color={theme.textSecondary} />
-                    <Text style={[styles.heroSearchText, { color: theme.textMuted }]}>Restaurants, cuisines…</Text>
-                    <View style={[styles.heroSearchFilter, { backgroundColor: theme.primaryDim }]}>
-                        <Ionicons name="options-outline" size={16} color={theme.primary} />
+        <View style={{ flex: 1, backgroundColor: theme.bg }}>
+            <ScrollView contentContainerStyle={{ paddingBottom: 30 }} showsVerticalScrollIndicator={false}>
+                {/* Hero */}
+                <LinearGradient colors={theme.heroBg} style={styles.hero}>
+                    <View style={styles.heroPill}>
+                        <View style={[styles.heroPillDot, { backgroundColor: theme.primary }]} />
+                        <Text style={[styles.heroPillText, { color: theme.primary }]}>{stats.total} Spots in Philly</Text>
                     </View>
-                </TouchableOpacity>
-            </LinearGradient>
+                    <Text style={styles.heroLogo}>HalalSpot</Text>
+                    <Text style={styles.heroTagline}>The finest halal dining in Philadelphia</Text>
+                    <TouchableOpacity
+                        style={[styles.heroSearch, { backgroundColor: theme.bgCard, borderColor: theme.border }]}
+                        activeOpacity={0.85}
+                        onPress={() => router.push('/(tabs)/explore')}
+                    >
+                        <Ionicons name="search-outline" size={18} color={theme.textSecondary} />
+                        <Text style={[styles.heroSearchText, { color: theme.textMuted }]}>Restaurants, cuisines…</Text>
+                        <View style={[styles.heroSearchFilter, { backgroundColor: theme.primaryDim }]}>
+                            <Ionicons name="options-outline" size={16} color={theme.primary} />
+                        </View>
+                    </TouchableOpacity>
+                </LinearGradient>
 
-            {/* Stats */}
-            <View style={styles.statsRow}>
-                <StatCard icon="storefront-outline" value={String(stats.total)} label="Places" theme={theme} />
-                <StatCard icon="shield-checkmark-outline" value={String(stats.certified)} label="Certified" color={theme.primary} theme={theme} />
-                <StatCard icon="location-outline" value="Philly" label="City" color={theme.gold} theme={theme} />
-            </View>
+                {/* Stats */}
+                <View style={styles.statsRow}>
+                    <StatCard icon="storefront-outline" value={String(stats.total)} label="Places" theme={theme} />
+                    <StatCard icon="shield-checkmark-outline" value={String(stats.certified)} label="Certified" color={theme.primary} theme={theme} />
+                    <StatCard icon="location-outline" value="Philly" label="City" color={theme.gold} theme={theme} />
+                </View>
 
-            {/* Sections */}
-            <Section title="⭐  Top Rated" data={sections.topRated} router={router} theme={theme} />
-            <Section title="📍  Near You" data={sections.nearYou} router={router} theme={theme} showDistance />
-            <Section title="🕒  Open Now" data={sections.openNow} router={router} theme={theme} />
-            <Section title="🕌  Halal Certified" data={sections.fullyCertified} router={router} theme={theme} />
-            {Object.entries(sections.cuisines).map(([cuisine, data]) => (
-                data.length >= 3 && <Section key={cuisine} title={`🍽  ${cuisine}`} data={data} router={router} theme={theme} />
-            ))}
-        </ScrollView>
+                <Section title="⭐  Top Rated" data={sections.topRated} router={router} theme={theme} onPress={handleCardPress} />
+                <Section title="📍  Near You" data={sections.nearYou} router={router} theme={theme} showDistance onPress={handleCardPress} />
+                <Section title="🕒  Open Now" data={sections.openNow} router={router} theme={theme} onPress={handleCardPress} />
+                <Section title="🕌  Halal Certified" data={sections.fullyCertified} router={router} theme={theme} onPress={handleCardPress} />
+                {Object.entries(sections.cuisines).map(([cuisine, data]) => (
+                    data.length >= 3 && <Section key={cuisine} title={`🍽  ${cuisine}`} data={data} router={router} theme={theme} onPress={handleCardPress} />
+                ))}
+            </ScrollView>
+
+            {/* Bottom Sheet */}
+            {selectedRestaurant && (
+                <RestaurantBottomSheet
+                    restaurant={selectedRestaurant}
+                    onClose={() => setSelectedRestaurant(null)}
+                />
+            )}
+        </View>
     );
 }
 
@@ -158,7 +174,7 @@ function StatCard({ icon, value, label, color, theme }: { icon: any; value: stri
     );
 }
 
-function Section({ title, data, router, theme, showDistance }: { title: string; data: RestaurantWithDistance[]; router: any; theme: any; showDistance?: boolean }) {
+function Section({ title, data, router, theme, showDistance, onPress }: { title: string; data: RestaurantWithDistance[]; router: any; theme: any; showDistance?: boolean; onPress: (r: RestaurantWithDistance) => void }) {
     if (data.length === 0) return null;
     return (
         <View style={styles.section}>
@@ -172,13 +188,13 @@ function Section({ title, data, router, theme, showDistance }: { title: string; 
                 </TouchableOpacity>
             </View>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.horizontalList}>
-                {data.map(r => <RestaurantCard key={r.id} restaurant={r} theme={theme} showDistance={showDistance} />)}
+                {data.map(r => <RestaurantCard key={r.id} restaurant={r} theme={theme} showDistance={showDistance} onPress={() => onPress(r)} />)}
             </ScrollView>
         </View>
     );
 }
 
-function RestaurantCard({ restaurant, theme, showDistance }: { restaurant: RestaurantWithDistance; theme: any; showDistance?: boolean }) {
+function RestaurantCard({ restaurant, theme, showDistance, onPress }: { restaurant: RestaurantWithDistance; theme: any; showDistance?: boolean; onPress: () => void }) {
     const scale = new Animated.Value(1);
     const certColors: Record<string, string> = { halal_certified: theme.certHalal, muslim_owned: theme.certMuslim, halal_options: theme.certOptions };
     const certColor = certColors[restaurant.certification_type] || theme.primary;
@@ -186,6 +202,7 @@ function RestaurantCard({ restaurant, theme, showDistance }: { restaurant: Resta
 
     return (
         <Pressable
+            onPress={onPress}
             onPressIn={() => Animated.spring(scale, { toValue: 0.97, useNativeDriver: true }).start()}
             onPressOut={() => Animated.spring(scale, { toValue: 1, useNativeDriver: true }).start()}
         >
@@ -213,7 +230,6 @@ function RestaurantCard({ restaurant, theme, showDistance }: { restaurant: Resta
 }
 
 const styles = StyleSheet.create({
-    container: { flex: 1 },
     loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', gap: 14 },
     loadingText: { fontSize: 14, fontFamily: 'Outfit' },
     hero: { paddingTop: 70, paddingBottom: 36, paddingHorizontal: 20, gap: 10 },
