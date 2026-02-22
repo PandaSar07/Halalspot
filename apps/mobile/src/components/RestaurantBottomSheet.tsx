@@ -1,19 +1,19 @@
-import React, { useCallback, useMemo, useRef, useState, useEffect } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
     View, Text, StyleSheet, Image, TouchableOpacity,
-    ScrollView, Dimensions, Animated as RNAnimated, ActivityIndicator, Pressable,
+    ScrollView, Dimensions, Animated, ActivityIndicator, Pressable,
+    Modal, PanResponder, TouchableWithoutFeedback,
 } from 'react-native';
-import BottomSheet, { BottomSheetScrollView, BottomSheetBackdrop } from '@gorhom/bottom-sheet';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import { useTheme } from '../lib/ThemeContext';
-import { Radius, Shadow } from '../lib/theme';
 import { supabase } from '../lib/supabase';
 import { getMenuItems, getMenuCategories } from '@halalspot/supabase';
 import type { RestaurantWithDistance } from '@halalspot/shared-types';
 
 const { width, height } = Dimensions.get('window');
+const SHEET_HEIGHT = height * 0.75;
 
 const CERT_LABELS: Record<string, string> = {
     halal_certified: '☪ Halal Certified',
@@ -27,14 +27,8 @@ const CERT_COLORS: Record<string, string> = {
 };
 
 type MenuItem = {
-    id: string;
-    name: string;
-    description: string | null;
-    price: number;
-    image_url: string | null;
-    category: string;
-    is_deal: boolean;
-    deal_text: string | null;
+    id: string; name: string; description: string | null; price: number;
+    image_url: string | null; category: string; is_deal: boolean; deal_text: string | null;
 };
 
 type Props = {
@@ -45,19 +39,39 @@ type Props = {
 export default function RestaurantBottomSheet({ restaurant, onClose }: Props) {
     const { theme } = useTheme();
     const router = useRouter();
-    const bottomSheetRef = useRef<BottomSheet>(null);
-    const snapPoints = useMemo(() => ['62%', '95%'], []);
+
+    // Animation values
+    const translateY = useRef(new Animated.Value(SHEET_HEIGHT)).current;
+    const overlayOpacity = useRef(new Animated.Value(0)).current;
+    const dragY = useRef(new Animated.Value(0)).current;
 
     const [activeTab, setActiveTab] = useState('Most Ordered');
     const [categories, setCategories] = useState<string[]>(['Most Ordered', 'Deals']);
     const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
     const [menuLoading, setMenuLoading] = useState(false);
-    const tabIndicator = useRef(new RNAnimated.Value(0)).current;
+    const tabIndicatorX = useRef(new Animated.Value(0)).current;
 
+    const TAB_WIDTH = width / Math.min(4, categories.length);
+
+    // Slide in on mount
     useEffect(() => {
         if (!restaurant) return;
+        setActiveTab('Most Ordered');
         loadMenu();
+        translateY.setValue(SHEET_HEIGHT);
+        dragY.setValue(0);
+        Animated.parallel([
+            Animated.spring(translateY, { toValue: 0, useNativeDriver: true, damping: 20, mass: 0.8, stiffness: 200 }),
+            Animated.timing(overlayOpacity, { toValue: 1, duration: 250, useNativeDriver: true }),
+        ]).start();
     }, [restaurant?.id]);
+
+    const dismiss = () => {
+        Animated.parallel([
+            Animated.spring(translateY, { toValue: SHEET_HEIGHT, useNativeDriver: true, damping: 20 }),
+            Animated.timing(overlayOpacity, { toValue: 0, duration: 200, useNativeDriver: true }),
+        ]).start(() => onClose());
+    };
 
     const loadMenu = async () => {
         if (!restaurant) return;
@@ -70,32 +84,31 @@ export default function RestaurantBottomSheet({ restaurant, onClose }: Props) {
             setCategories(cats.length > 0 ? cats : ['Most Ordered', 'Deals']);
             setMenuItems(items as MenuItem[]);
         } catch (e) {
-            console.error('Menu fetch error:', e);
+            console.error('Menu error:', e);
         } finally {
             setMenuLoading(false);
         }
     };
 
-    const handleSheetChanges = useCallback((index: number) => {
-        if (index === -1) onClose();
-    }, [onClose]);
-
-    const renderBackdrop = useCallback(
-        (props: any) => (
-            <BottomSheetBackdrop
-                {...props}
-                disappearsOnIndex={-1}
-                appearsOnIndex={0}
-                opacity={0.6}
-            />
-        ),
-        []
-    );
+    // Swipe down to dismiss
+    const panResponder = useRef(PanResponder.create({
+        onMoveShouldSetPanResponder: (_, { dy }) => dy > 8,
+        onPanResponderMove: (_, { dy }) => {
+            if (dy > 0) dragY.setValue(dy);
+        },
+        onPanResponderRelease: (_, { dy, vy }) => {
+            if (dy > 120 || vy > 1.5) {
+                dismiss();
+            } else {
+                Animated.spring(dragY, { toValue: 0, useNativeDriver: true }).start();
+            }
+        },
+    })).current;
 
     const handleTabChange = (tab: string, index: number) => {
         setActiveTab(tab);
-        RNAnimated.spring(tabIndicator, {
-            toValue: index * (width / Math.min(categories.length, 4)),
+        Animated.spring(tabIndicatorX, {
+            toValue: index * TAB_WIDTH,
             useNativeDriver: true,
         }).start();
     };
@@ -111,114 +124,116 @@ export default function RestaurantBottomSheet({ restaurant, onClose }: Props) {
     const certColor = CERT_COLORS[restaurant.certification_type] || '#00C96B';
     const certLabel = CERT_LABELS[restaurant.certification_type] || 'Halal';
 
+    const displayedCategories = categories.slice(0, 4);
+
     return (
-        <BottomSheet
-            ref={bottomSheetRef}
-            snapPoints={snapPoints}
-            index={0}
-            onChange={handleSheetChanges}
-            enablePanDownToClose
-            backdropComponent={renderBackdrop}
-            handleIndicatorStyle={{ backgroundColor: theme.textMuted, width: 36 }}
-            backgroundStyle={{ backgroundColor: theme.bgCard }}
-        >
-            <BottomSheetScrollView bounces={false} showsVerticalScrollIndicator={false}>
-                {/* Hero Image */}
-                <View style={styles.heroWrap}>
-                    <Image
-                        source={{ uri: restaurant.image_url || 'https://images.unsplash.com/photo-1555939594-58d7cb561ad1?w=800&h=400&fit=crop' }}
-                        style={styles.heroImage}
-                    />
-                    <LinearGradient
-                        colors={['transparent', 'rgba(0,0,0,0.7)']}
-                        style={StyleSheet.absoluteFill}
-                    />
-                    {/* Expand to full page button */}
-                    <TouchableOpacity
-                        style={styles.expandBtn}
-                        onPress={() => {
-                            bottomSheetRef.current?.close();
-                            router.push(`/restaurant/${restaurant.id}`);
-                        }}
-                    >
-                        <Ionicons name="expand-outline" size={18} color="#111" />
-                    </TouchableOpacity>
+        <Modal transparent visible animationType="none" onRequestClose={dismiss}>
+            {/* Overlay */}
+            <TouchableWithoutFeedback onPress={dismiss}>
+                <Animated.View style={[styles.overlay, { opacity: overlayOpacity }]} />
+            </TouchableWithoutFeedback>
+
+            {/* Sheet */}
+            <Animated.View
+                style={[
+                    styles.sheet,
+                    { backgroundColor: theme.bgCard },
+                    { transform: [{ translateY: Animated.add(translateY, dragY) }] },
+                ]}
+            >
+                {/* Drag handle */}
+                <View {...panResponder.panHandlers} style={styles.handleArea}>
+                    <View style={[styles.handle, { backgroundColor: theme.textMuted }]} />
                 </View>
 
-                {/* Content */}
-                <View style={[styles.content, { backgroundColor: theme.bgCard }]}>
-                    {/* Name + quick pills */}
-                    <Text style={[styles.name, { color: theme.textPrimary }]}>{restaurant.name}</Text>
-
-                    <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.pillRow} contentContainerStyle={styles.pillRowContent}>
-                        <View style={[styles.pill, { backgroundColor: certColor + '20', borderColor: certColor + '55' }]}>
-                            <Text style={[styles.pillText, { color: certColor }]}>{certLabel}</Text>
-                        </View>
-                        {restaurant.distance_meters ? (
-                            <View style={[styles.pill, { backgroundColor: theme.bgElevated, borderColor: theme.border }]}>
-                                <Ionicons name="location-outline" size={12} color={theme.textSecondary} />
-                                <Text style={[styles.pillText, { color: theme.textSecondary }]}>
-                                    {(restaurant.distance_meters * 0.000621371).toFixed(1)} mi
-                                </Text>
-                            </View>
-                        ) : null}
-                        <View style={[styles.pill, { backgroundColor: '#00C96B20', borderColor: '#00C96B55' }]}>
-                            <View style={styles.openDot} />
-                            <Text style={[styles.pillText, { color: '#00C96B' }]}>Open</Text>
-                        </View>
-                        {restaurant.avg_rating ? (
-                            <View style={[styles.pill, { backgroundColor: theme.goldDim, borderColor: theme.gold + '55' }]}>
-                                <Ionicons name="star" size={12} color={theme.gold} />
-                                <Text style={[styles.pillText, { color: theme.gold }]}>{restaurant.avg_rating.toFixed(1)}</Text>
-                            </View>
-                        ) : null}
-                    </ScrollView>
-
-                    {/* Description */}
-                    <Text style={[styles.description, { color: theme.textSecondary }]}>
-                        {restaurant.description || `${restaurant.name} serves authentic halal cuisine in the heart of Philadelphia. Stop by to experience bold flavors, fresh ingredients, and a warm atmosphere.`}
-                    </Text>
-
-                    {/* Tab bar */}
-                    <View style={[styles.tabBar, { borderBottomColor: theme.border }]}>
-                        {categories.slice(0, 4).map((tab, i) => (
-                            <TouchableOpacity key={tab} style={styles.tab} onPress={() => handleTabChange(tab, i)}>
-                                <Text style={[
-                                    styles.tabText,
-                                    { color: activeTab === tab ? '#00C96B' : theme.textSecondary },
-                                    activeTab === tab && styles.tabTextActive,
-                                ]}>{tab}</Text>
-                            </TouchableOpacity>
-                        ))}
-                        <RNAnimated.View style={[
-                            styles.tabIndicator,
-                            { width: width / Math.min(categories.length, 4), transform: [{ translateX: tabIndicator }] },
-                        ]} />
+                <ScrollView bounces={false} showsVerticalScrollIndicator={false}>
+                    {/* Hero Image */}
+                    <View style={styles.heroWrap}>
+                        <Image
+                            source={{ uri: restaurant.image_url || 'https://images.unsplash.com/photo-1555939594-58d7cb561ad1?w=800&h=400&fit=crop' }}
+                            style={styles.heroImage}
+                        />
+                        <LinearGradient colors={['transparent', 'rgba(0,0,0,0.65)']} style={StyleSheet.absoluteFill} />
+                        {/* Expand button */}
+                        <TouchableOpacity
+                            style={styles.expandBtn}
+                            onPress={() => {
+                                dismiss();
+                                setTimeout(() => router.push(`/restaurant/${restaurant.id}`), 300);
+                            }}
+                        >
+                            <Ionicons name="expand-outline" size={18} color="#111" />
+                        </TouchableOpacity>
                     </View>
 
-                    {/* Menu Items */}
-                    {menuLoading ? (
-                        <View style={styles.menuLoading}>
-                            <ActivityIndicator color="#00C96B" />
-                            <Text style={[styles.menuLoadingText, { color: theme.textSecondary }]}>Loading menu…</Text>
-                        </View>
-                    ) : filteredItems.length === 0 ? (
-                        <View style={styles.menuEmpty}>
-                            <Ionicons name="restaurant-outline" size={32} color={theme.textMuted} />
-                            <Text style={[styles.menuEmptyText, { color: theme.textMuted }]}>
-                                {activeTab === 'Deals' ? 'No active deals' : 'Menu coming soon'}
-                            </Text>
-                        </View>
-                    ) : (
-                        filteredItems.map(item => (
-                            <MenuItemCard key={item.id} item={item} theme={theme} />
-                        ))
-                    )}
+                    {/* Content */}
+                    <View style={[styles.content, { backgroundColor: theme.bgCard }]}>
+                        <Text style={[styles.name, { color: theme.textPrimary }]}>{restaurant.name}</Text>
 
-                    <View style={{ height: 30 }} />
-                </View>
-            </BottomSheetScrollView>
-        </BottomSheet>
+                        {/* Quick info pills */}
+                        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.pillRow}>
+                            <View style={[styles.pill, { backgroundColor: certColor + '20', borderColor: certColor + '55' }]}>
+                                <Text style={[styles.pillText, { color: certColor }]}>{certLabel}</Text>
+                            </View>
+                            {restaurant.distance_meters ? (
+                                <View style={[styles.pill, { backgroundColor: theme.bgElevated, borderColor: theme.border }]}>
+                                    <Ionicons name="location-outline" size={12} color={theme.textSecondary} />
+                                    <Text style={[styles.pillText, { color: theme.textSecondary }]}>
+                                        {(restaurant.distance_meters * 0.000621371).toFixed(1)} mi
+                                    </Text>
+                                </View>
+                            ) : null}
+                            <View style={[styles.pill, { backgroundColor: '#00C96B20', borderColor: '#00C96B55' }]}>
+                                <View style={styles.openDot} />
+                                <Text style={[styles.pillText, { color: '#00C96B' }]}>Open</Text>
+                            </View>
+                            {restaurant.avg_rating ? (
+                                <View style={[styles.pill, { backgroundColor: '#F5C84220', borderColor: '#F5C84255' }]}>
+                                    <Ionicons name="star" size={12} color="#F5C842" />
+                                    <Text style={[styles.pillText, { color: '#F5C842' }]}>{restaurant.avg_rating.toFixed(1)}</Text>
+                                </View>
+                            ) : null}
+                        </ScrollView>
+
+                        {/* Description */}
+                        <Text style={[styles.description, { color: theme.textSecondary }]}>
+                            {restaurant.description || `${restaurant.name} serves authentic halal cuisine in the heart of Philadelphia. Stop by for bold flavors, fresh ingredients, and a warm atmosphere.`}
+                        </Text>
+
+                        {/* Tab bar */}
+                        <View style={[styles.tabBar, { borderBottomColor: theme.border }]}>
+                            {displayedCategories.map((tab, i) => (
+                                <TouchableOpacity key={tab} style={[styles.tab, { width: TAB_WIDTH }]} onPress={() => handleTabChange(tab, i)}>
+                                    <Text style={[styles.tabText, { color: activeTab === tab ? '#00C96B' : theme.textSecondary }, activeTab === tab && styles.tabTextActive]}>
+                                        {tab}
+                                    </Text>
+                                </TouchableOpacity>
+                            ))}
+                            <Animated.View style={[styles.tabIndicator, { width: TAB_WIDTH, transform: [{ translateX: tabIndicatorX }] }]} />
+                        </View>
+
+                        {/* Menu */}
+                        {menuLoading ? (
+                            <View style={styles.menuLoading}>
+                                <ActivityIndicator color="#00C96B" />
+                                <Text style={[styles.menuLoadingText, { color: theme.textSecondary }]}>Loading menu…</Text>
+                            </View>
+                        ) : filteredItems.length === 0 ? (
+                            <View style={styles.menuEmpty}>
+                                <Ionicons name="restaurant-outline" size={36} color={theme.textMuted} />
+                                <Text style={[styles.menuEmptyText, { color: theme.textMuted }]}>
+                                    {activeTab === 'Deals' ? 'No active deals' : 'Menu coming soon'}
+                                </Text>
+                            </View>
+                        ) : (
+                            filteredItems.map(item => <MenuItemCard key={item.id} item={item} theme={theme} />)
+                        )}
+
+                        <View style={{ height: 40 }} />
+                    </View>
+                </ScrollView>
+            </Animated.View>
+        </Modal>
     );
 }
 
@@ -243,10 +258,10 @@ function MenuItemCard({ item, theme }: { item: MenuItem; theme: any }) {
                     <Image source={{ uri: item.image_url }} style={styles.menuImage} />
                 ) : (
                     <View style={[styles.menuImagePlaceholder, { backgroundColor: theme.bgElevated }]}>
-                        <Ionicons name="restaurant-outline" size={22} color={theme.textMuted} />
+                        <Ionicons name="fast-food-outline" size={22} color={theme.textMuted} />
                     </View>
                 )}
-                <TouchableOpacity style={styles.addBtn}>
+                <TouchableOpacity style={styles.addBtn} activeOpacity={0.8}>
                     <Ionicons name="add" size={20} color="#fff" />
                 </TouchableOpacity>
             </View>
@@ -255,19 +270,34 @@ function MenuItemCard({ item, theme }: { item: MenuItem; theme: any }) {
 }
 
 const styles = StyleSheet.create({
-    heroWrap: { width: '100%', height: 180, position: 'relative', overflow: 'hidden' },
+    overlay: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.6)' },
+    sheet: {
+        position: 'absolute', bottom: 0, left: 0, right: 0,
+        height: SHEET_HEIGHT,
+        borderTopLeftRadius: 28, borderTopRightRadius: 28,
+        overflow: 'hidden',
+        shadowColor: '#000', shadowOffset: { width: 0, height: -4 },
+        shadowOpacity: 0.18, shadowRadius: 20, elevation: 20,
+    },
+    handleArea: { alignItems: 'center', paddingVertical: 12 },
+    handle: { width: 36, height: 4, borderRadius: 2 },
+    heroWrap: { width: '100%', height: 180, position: 'relative' },
     heroImage: { width: '100%', height: '100%' },
-    expandBtn: { position: 'absolute', top: 12, right: 12, width: 36, height: 36, borderRadius: 18, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center', shadowColor: '#000', shadowOpacity: 0.15, shadowRadius: 6, shadowOffset: { width: 0, height: 2 }, elevation: 4 },
-    content: { flex: 1, padding: 20, paddingTop: 16 },
+    expandBtn: {
+        position: 'absolute', top: 12, right: 12,
+        width: 36, height: 36, borderRadius: 18,
+        backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center',
+        shadowColor: '#000', shadowOpacity: 0.15, shadowRadius: 6, shadowOffset: { width: 0, height: 2 },
+    },
+    content: { padding: 20, paddingTop: 16 },
     name: { fontSize: 24, fontFamily: 'Outfit-SemiBold', fontWeight: '800', marginBottom: 10 },
-    pillRow: { marginBottom: 12 },
-    pillRowContent: { gap: 8, paddingRight: 4 },
+    pillRow: { gap: 8, marginBottom: 12 },
     pill: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 100, borderWidth: 1 },
     pillText: { fontSize: 12, fontFamily: 'Outfit-SemiBold' },
     openDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: '#00C96B' },
     description: { fontSize: 14, fontFamily: 'Outfit', lineHeight: 21, marginBottom: 16 },
     tabBar: { flexDirection: 'row', borderBottomWidth: 1.5, marginBottom: 12, position: 'relative' },
-    tab: { flex: 1, paddingVertical: 10, alignItems: 'center' },
+    tab: { paddingVertical: 10, alignItems: 'center' },
     tabText: { fontSize: 13, fontFamily: 'Outfit-SemiBold' },
     tabTextActive: { fontFamily: 'Outfit-Bold' },
     tabIndicator: { position: 'absolute', bottom: -1.5, height: 2.5, backgroundColor: '#00C96B', borderRadius: 2 },
