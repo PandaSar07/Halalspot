@@ -1,10 +1,4 @@
-import { type ClassValue, clsx } from 'clsx';
-import { twMerge } from 'tailwind-merge';
 import { CertificationType } from '@halalspot/shared-types';
-
-export function cn(...inputs: ClassValue[]) {
-    return twMerge(clsx(inputs));
-}
 
 export function getCertificationLabel(type: CertificationType): string {
     switch (type) {
@@ -22,12 +16,12 @@ export function getCertificationLabel(type: CertificationType): string {
 export function getCertificationColor(type: CertificationType): string {
     switch (type) {
         case 'halal_certified':
-            return 'bg-green-100 text-green-800';
+            return '#059669';
         case 'muslim_owned':
-            return 'bg-blue-100 text-blue-800';
+            return '#2563eb';
         case 'halal_options':
-            return 'bg-purple-100 text-purple-800';
+            return '#7c3aed';
         default:
-            return 'bg-gray-100 text-gray-800';
+            return '#9ca3af';
     }
 }

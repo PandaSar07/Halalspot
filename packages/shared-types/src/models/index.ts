@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import type { Database } from './database.types';
+import type { Database } from '../database.types';
 
 // Database table types
 export type User = Database['public']['Tables']['users']['Row'];
@@ -31,6 +31,7 @@ export interface Coordinates {
 
 export interface RestaurantWithDistance extends Restaurant {
     distance_meters?: number;
+    avg_rating?: number;
 }
 
 // Validation schemas
@@ -44,6 +45,8 @@ export const restaurantInsertSchema = z.object({
     description: z.string().max(1000).optional(),
     location: coordinatesSchema,
     address: z.string().max(500).optional(),
+    cuisine: z.string().max(100).optional(),
+    opening_hours: z.any().optional(),
     certification_type: z.enum(['halal_certified', 'muslim_owned', 'halal_options']),
     certification_details: z.string().max(500).optional(),
     phone: z.string().max(20).optional(),
