@@ -1,33 +1,44 @@
 import { Tabs } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { View, StyleSheet, Platform } from 'react-native';
+import { Colors } from '../../src/lib/theme';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 export default function TabLayout() {
+    const insets = useSafeAreaInsets();
+    
     return (
         <Tabs
-            screenOptions={{
-                tabBarActiveTintColor: '#10b981',
-                tabBarInactiveTintColor: '#9ca3af',
+            screenOptions={({route}) => ({
+                tabBarActiveTintColor: Colors.primary,
+                tabBarInactiveTintColor: Colors.textMuted,
                 tabBarStyle: {
-                    backgroundColor: '#ffffff',
+                    backgroundColor: '#141414',
                     borderTopWidth: 1,
-                    borderTopColor: '#f3f4f6',
-                    height: 90,
-                    paddingBottom: 30,
-                    paddingTop: 10,
+                    borderTopColor: Colors.border,
+                    height: 60 + insets.bottom,
+                    paddingBottom: insets.bottom,
+                    paddingTop: 8,
                 },
                 tabBarLabelStyle: {
-                    fontSize: 12,
-                    fontWeight: '600',
+                    fontSize: 11,
+                    fontFamily: 'Outfit-SemiBold',
+                    marginTop: 0,
                 },
                 headerShown: false,
-            }}
+                tabBarIndicatorStyle: {
+                    backgroundColor: Colors.primary,
+                },
+            })}
         >
             <Tabs.Screen
                 name="index"
                 options={{
                     title: 'Home',
-                    tabBarIcon: ({ color, size }) => (
-                        <Ionicons name="home" size={size} color={color} />
+                    tabBarIcon: ({ color, focused }) => (
+                        <View style={[styles.iconWrap, focused && styles.iconWrapActive]}>
+                            <Ionicons name={focused ? 'home' : 'home-outline'} size={22} color={color} />
+                        </View>
                     ),
                 }}
             />
@@ -35,17 +46,21 @@ export default function TabLayout() {
                 name="explore"
                 options={{
                     title: 'Explore',
-                    tabBarIcon: ({ color, size }) => (
-                        <Ionicons name="search" size={size} color={color} />
+                    tabBarIcon: ({ color, focused }) => (
+                        <View style={[styles.iconWrap, focused && styles.iconWrapActive]}>
+                            <Ionicons name={focused ? 'search' : 'search-outline'} size={22} color={color} />
+                        </View>
                     ),
                 }}
             />
             <Tabs.Screen
                 name="favorites"
                 options={{
-                    title: 'Favorites',
-                    tabBarIcon: ({ color, size }) => (
-                        <Ionicons name="heart" size={size} color={color} />
+                    title: 'Saved',
+                    tabBarIcon: ({ color, focused }) => (
+                        <View style={[styles.iconWrap, focused && styles.iconWrapActive]}>
+                            <Ionicons name={focused ? 'heart' : 'heart-outline'} size={22} color={color} />
+                        </View>
                     ),
                 }}
             />
@@ -53,11 +68,26 @@ export default function TabLayout() {
                 name="profile"
                 options={{
                     title: 'Profile',
-                    tabBarIcon: ({ color, size }) => (
-                        <Ionicons name="person" size={size} color={color} />
+                    tabBarIcon: ({ color, focused }) => (
+                        <View style={[styles.iconWrap, focused && styles.iconWrapActive]}>
+                            <Ionicons name={focused ? 'person' : 'person-outline'} size={22} color={color} />
+                        </View>
                     ),
                 }}
             />
         </Tabs>
     );
 }
+
+const styles = StyleSheet.create({
+    iconWrap: {
+        width: 36,
+        height: 36,
+        alignItems: 'center',
+        justifyContent: 'center',
+        borderRadius: 10,
+    },
+    iconWrapActive: {
+        backgroundColor: 'rgba(0, 201, 107, 0.12)',
+    },
+});

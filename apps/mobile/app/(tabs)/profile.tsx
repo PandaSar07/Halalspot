@@ -1,77 +1,100 @@
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { Colors, Radius } from '../../src/lib/theme';
 import { LinearGradient } from 'expo-linear-gradient';
+
+const menuItems = [
+    { icon: 'heart-outline', label: 'Saved Restaurants', desc: 'Your bookmarked spots' },
+    { icon: 'star-outline', label: 'My Reviews', desc: 'Reviews you\'ve written' },
+    { icon: 'notifications-outline', label: 'Notifications', desc: 'Manage alerts' },
+    { icon: 'shield-outline', label: 'Privacy & Security', desc: 'Account settings' },
+    { icon: 'help-circle-outline', label: 'Help & Support', desc: 'FAQs and contact' },
+    { icon: 'information-circle-outline', label: 'About HalalSpot', desc: 'Version 1.0.0' },
+];
 
 export default function ProfileScreen() {
     return (
         <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
-            <View style={styles.header}>
-                <Text style={styles.title}>Profile</Text>
-            </View>
-
-            {/* Avatar */}
-            <View style={styles.avatarSection}>
-                <LinearGradient colors={['#10b981', '#059669']} style={styles.avatar}>
-                    <Ionicons name="person" size={40} color="#fff" />
-                </LinearGradient>
+            {/* Avatar Header */}
+            <LinearGradient colors={['#0F2018', '#0F0F0F']} style={styles.profileHeader}>
+                <View style={styles.avatarRing}>
+                    <View style={styles.avatar}>
+                        <Ionicons name="person" size={36} color={Colors.primary} />
+                    </View>
+                </View>
                 <Text style={styles.name}>Guest User</Text>
-                <Text style={styles.email}>Sign in to save your favorites</Text>
-                <TouchableOpacity style={styles.signInButton}>
-                    <Text style={styles.signInText}>Sign In</Text>
+                <Text style={styles.email}>Sign in to access your profile</Text>
+                <TouchableOpacity style={styles.signInBtn}>
+                    <Text style={styles.signInBtnText}>Sign In</Text>
                 </TouchableOpacity>
+            </LinearGradient>
+
+            {/* Stats */}
+            <View style={styles.miniStats}>
+                <View style={styles.miniStat}>
+                    <Text style={styles.miniStatNum}>0</Text>
+                    <Text style={styles.miniStatLabel}>Reviews</Text>
+                </View>
+                <View style={styles.miniStatDivider} />
+                <View style={styles.miniStat}>
+                    <Text style={styles.miniStatNum}>0</Text>
+                    <Text style={styles.miniStatLabel}>Saved</Text>
+                </View>
+                <View style={styles.miniStatDivider} />
+                <View style={styles.miniStat}>
+                    <Text style={styles.miniStatNum}>0</Text>
+                    <Text style={styles.miniStatLabel}>Check-ins</Text>
+                </View>
             </View>
 
-            {/* Menu Items */}
+            {/* Menu */}
             <View style={styles.menuSection}>
-                <MenuItem icon="notifications-outline" label="Notifications" />
-                <MenuItem icon="moon-outline" label="Dark Mode" />
-                <MenuItem icon="language-outline" label="Language" value="English" />
-                <MenuItem icon="location-outline" label="Location" value="Philadelphia" />
+                {menuItems.map((item, i) => (
+                    <TouchableOpacity key={i} style={styles.menuItem} activeOpacity={0.7}>
+                        <View style={styles.menuIconWrap}>
+                            <Ionicons name={item.icon as any} size={20} color={Colors.primary} />
+                        </View>
+                        <View style={styles.menuText}>
+                            <Text style={styles.menuLabel}>{item.label}</Text>
+                            <Text style={styles.menuDesc}>{item.desc}</Text>
+                        </View>
+                        <Ionicons name="chevron-forward" size={16} color={Colors.textMuted} />
+                    </TouchableOpacity>
+                ))}
             </View>
 
-            <View style={styles.menuSection}>
-                <MenuItem icon="help-circle-outline" label="Help & Support" />
-                <MenuItem icon="document-text-outline" label="Terms of Service" />
-                <MenuItem icon="shield-checkmark-outline" label="Privacy Policy" />
-                <MenuItem icon="star-outline" label="Rate App" />
-            </View>
-
-            <Text style={styles.version}>HalalSpot v1.0.0</Text>
             <View style={{ height: 40 }} />
         </ScrollView>
     );
 }
 
-function MenuItem({ icon, label, value }: { icon: string; label: string; value?: string }) {
-    return (
-        <TouchableOpacity style={styles.menuItem}>
-            <View style={styles.menuItemLeft}>
-                <Ionicons name={icon as any} size={22} color="#6b7280" />
-                <Text style={styles.menuLabel}>{label}</Text>
-            </View>
-            <View style={styles.menuItemRight}>
-                {value && <Text style={styles.menuValue}>{value}</Text>}
-                <Ionicons name="chevron-forward" size={18} color="#d1d5db" />
-            </View>
-        </TouchableOpacity>
-    );
-}
-
 const styles = StyleSheet.create({
-    container: { flex: 1, backgroundColor: '#f9fafb' },
-    header: { paddingTop: 60, paddingHorizontal: 20, paddingBottom: 4 },
-    title: { fontSize: 30, fontWeight: '800', color: '#111827' },
-    avatarSection: { alignItems: 'center', paddingVertical: 24 },
-    avatar: { width: 88, height: 88, borderRadius: 44, alignItems: 'center', justifyContent: 'center', marginBottom: 14 },
-    name: { fontSize: 22, fontWeight: '700', color: '#111827' },
-    email: { fontSize: 14, color: '#6b7280', marginTop: 2 },
-    signInButton: { marginTop: 14, backgroundColor: '#10b981', paddingHorizontal: 32, paddingVertical: 12, borderRadius: 12 },
-    signInText: { color: '#fff', fontSize: 15, fontWeight: '700' },
-    menuSection: { backgroundColor: '#fff', marginHorizontal: 20, borderRadius: 16, marginBottom: 16, overflow: 'hidden' },
-    menuItem: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 15, paddingHorizontal: 16, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: '#f3f4f6' },
-    menuItemLeft: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-    menuItemRight: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-    menuLabel: { fontSize: 15, fontWeight: '500', color: '#374151' },
-    menuValue: { fontSize: 14, color: '#9ca3af' },
-    version: { textAlign: 'center', fontSize: 13, color: '#d1d5db', marginTop: 8 },
+    container: { flex: 1, backgroundColor: Colors.bg },
+    profileHeader: {
+        paddingTop: 70, paddingBottom: 28, alignItems: 'center', gap: 6,
+    },
+    avatarRing: { width: 84, height: 84, borderRadius: 42, borderWidth: 2, borderColor: Colors.primary + '55', alignItems: 'center', justifyContent: 'center', marginBottom: 4 },
+    avatar: { width: 72, height: 72, borderRadius: 36, backgroundColor: Colors.primaryDim, alignItems: 'center', justifyContent: 'center' },
+    name: { fontSize: 22, color: Colors.textPrimary, fontFamily: 'DMSerifDisplay' },
+    email: { fontSize: 13, color: Colors.textSecondary, fontFamily: 'Outfit' },
+    signInBtn: {
+        marginTop: 10, backgroundColor: Colors.primary, paddingHorizontal: 28,
+        paddingVertical: 12, borderRadius: Radius.pill,
+    },
+    signInBtnText: { color: Colors.bg, fontFamily: 'Outfit-SemiBold', fontSize: 14, fontWeight: '700' },
+    miniStats: {
+        flexDirection: 'row', backgroundColor: Colors.bgCard, marginHorizontal: 20,
+        borderRadius: Radius.xl, paddingVertical: 18, marginTop: 16,
+        borderWidth: 1, borderColor: Colors.border,
+    },
+    miniStat: { flex: 1, alignItems: 'center', gap: 2 },
+    miniStatNum: { fontSize: 22, color: Colors.textPrimary, fontFamily: 'Outfit-SemiBold', fontWeight: '800' },
+    miniStatLabel: { fontSize: 11, color: Colors.textMuted, fontFamily: 'Outfit', textTransform: 'uppercase', letterSpacing: 0.5 },
+    miniStatDivider: { width: 1, backgroundColor: Colors.border },
+    menuSection: { marginTop: 20, marginHorizontal: 20, backgroundColor: Colors.bgCard, borderRadius: Radius.xl, borderWidth: 1, borderColor: Colors.border, overflow: 'hidden' },
+    menuItem: { flexDirection: 'row', alignItems: 'center', padding: 16, gap: 14, borderBottomWidth: 1, borderBottomColor: Colors.border },
+    menuIconWrap: { width: 38, height: 38, borderRadius: 12, backgroundColor: Colors.primaryDim, alignItems: 'center', justifyContent: 'center' },
+    menuText: { flex: 1, gap: 1 },
+    menuLabel: { fontSize: 14, color: Colors.textPrimary, fontFamily: 'Outfit-SemiBold', fontWeight: '600' },
+    menuDesc: { fontSize: 12, color: Colors.textMuted, fontFamily: 'Outfit' },
 });
