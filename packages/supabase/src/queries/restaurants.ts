@@ -1,4 +1,4 @@
-import type { SupabaseClient } from './client';
+import type { SupabaseClient } from '../client';
 import type { Coordinates, RestaurantWithDistance } from '@halalspot/shared-types';
 
 /**
@@ -120,4 +120,46 @@ export async function toggleFavorite(
         if (error) throw error;
         return true;
     }
+}
+
+/**
+ * Get menu items for a restaurant, optionally filtered by category
+ */
+export async function getMenuItems(
+    client: SupabaseClient,
+    restaurantId: string,
+    category?: string
+) {
+    let query = (client as any)
+        .from('menu_items')
+        .select('*')
+        .eq('restaurant_id', restaurantId)
+        .order('is_deal', { ascending: false })
+        .order('created_at', { ascending: true });
+
+    if (category && category !== 'All') {
+        query = query.eq('category', category);
+    }
+
+    const { data, error } = await query;
+    if (error) throw error;
+    return data || [];
+}
+
+/**
+ * Get distinct menu categories for a restaurant
+ */
+export async function getMenuCategories(
+    client: SupabaseClient,
+    restaurantId: string
+): Promise<string[]> {
+    const { data, error } = await (client as any)
+        .from('menu_items')
+        .select('category')
+        .eq('restaurant_id', restaurantId);
+
+    if (error) throw error;
+    const categories = [...new Set((data || []).map((r: any) => String(r.category)))];
+
+    return ['Most Ordered', ...categories.filter(c => c !== 'Most Ordered'), 'Deals'];
 }

@@ -11,6 +11,7 @@ import {
     DMSerifDisplay_400Regular,
 } from '@expo-google-fonts/dm-serif-display';
 import * as SplashScreen from 'expo-splash-screen';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { ThemeProvider, useTheme } from '../src/lib/ThemeContext';
 
 SplashScreen.preventAutoHideAsync();
@@ -22,6 +23,7 @@ function AppNavigator() {
             <StatusBar style={theme.statusBar} />
             <Stack screenOptions={{ headerShown: false }}>
                 <Stack.Screen name="(tabs)" />
+                <Stack.Screen name="restaurant/[id]" options={{ animation: 'slide_from_bottom' }} />
             </Stack>
         </>
     );
@@ -44,8 +46,10 @@ export default function RootLayout() {
     if (!fontsLoaded && !fontError) return null;
 
     return (
-        <ThemeProvider>
-            <AppNavigator />
-        </ThemeProvider>
+        <GestureHandlerRootView style={{ flex: 1 }}>
+            <ThemeProvider>
+                <AppNavigator />
+            </ThemeProvider>
+        </GestureHandlerRootView>
     );
 }

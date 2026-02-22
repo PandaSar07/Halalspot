@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import {
     View, Text, ScrollView, StyleSheet, TextInput,
     TouchableOpacity, Image, ActivityIndicator, Pressable, Animated,
@@ -9,6 +9,7 @@ import { supabase } from '../../src/lib/supabase';
 import { getNearbyRestaurants } from '@halalspot/supabase';
 import { Radius, Shadow } from '../../src/lib/theme';
 import { useTheme } from '../../src/lib/ThemeContext';
+import RestaurantBottomSheet from '../../src/components/RestaurantBottomSheet';
 import type { RestaurantWithDistance } from '@halalspot/shared-types';
 import { LinearGradient } from 'expo-linear-gradient';
 
@@ -28,6 +29,8 @@ export default function ExploreScreen() {
     const [restaurants, setRestaurants] = useState<RestaurantWithDistance[]>([]);
     const [loading, setLoading] = useState(true);
     const [location, setLocation] = useState<Location.LocationObject | null>(null);
+    const [selectedRestaurant, setSelectedRestaurant] = useState<RestaurantWithDistance | null>(null);
+    const handleCardPress = useCallback((r: RestaurantWithDistance) => setSelectedRestaurant(r), []);
 
     useEffect(() => {
         (async () => {
@@ -107,7 +110,7 @@ export default function ExploreScreen() {
             ) : (
                 <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.list}>
                     <Text style={[styles.count, { color: theme.textMuted }]}>{restaurants.length} restaurants</Text>
-                    {restaurants.map(r => <ExploreCard key={r.id} restaurant={r} theme={theme} />)}
+                    {restaurants.map(r => <ExploreCard key={r.id} restaurant={r} theme={theme} onPress={() => handleCardPress(r)} />)}
                     {restaurants.length === 0 && (
                         <View style={styles.empty}>
                             <Ionicons name="restaurant-outline" size={48} color={theme.textMuted} />
@@ -117,11 +120,17 @@ export default function ExploreScreen() {
                     <View style={{ height: 30 }} />
                 </ScrollView>
             )}
+            {selectedRestaurant && (
+                <RestaurantBottomSheet
+                    restaurant={selectedRestaurant}
+                    onClose={() => setSelectedRestaurant(null)}
+                />
+            )}
         </View>
     );
 }
 
-function ExploreCard({ restaurant, theme }: { restaurant: RestaurantWithDistance; theme: any }) {
+function ExploreCard({ restaurant, theme, onPress }: { restaurant: RestaurantWithDistance; theme: any; onPress: () => void }) {
     const scale = new Animated.Value(1);
     const certColors: Record<string, string> = { halal_certified: theme.certHalal, muslim_owned: theme.certMuslim, halal_options: theme.certOptions };
     const certColor = certColors[restaurant.certification_type] || theme.primary;
@@ -129,6 +138,7 @@ function ExploreCard({ restaurant, theme }: { restaurant: RestaurantWithDistance
 
     return (
         <Pressable
+            onPress={onPress}
             onPressIn={() => Animated.spring(scale, { toValue: 0.98, useNativeDriver: true }).start()}
             onPressOut={() => Animated.spring(scale, { toValue: 1, useNativeDriver: true }).start()}
         >
