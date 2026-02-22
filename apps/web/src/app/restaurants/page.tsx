@@ -1,28 +1,47 @@
 'use client';
 
-import { useState } from 'react';
-import { Search, Filter, LayoutGrid, Map as MapIcon } from 'lucide-react';
-import { Button } from '@/components/ui/Button';
-import { Input } from '@/components/ui/Input';
-import { mockRestaurants, Restaurant } from '@/lib/mockData';
+import { useState, useEffect } from 'react';
+import { Search, LayoutGrid, Map as MapIcon } from 'lucide-react';
+import { createClient } from '@/lib/supabase/client';
 import { RestaurantGrid } from '@/components/restaurants/RestaurantGrid';
 import { RestaurantMap } from '@/components/restaurants/RestaurantMap';
+import type { Restaurant } from '@halalspot/shared-types';
 
 export default function RestaurantsPage() {
     const [searchQuery, setSearchQuery] = useState('');
     const [selectedType, setSelectedType] = useState<string>('all');
     const [viewMode, setViewMode] = useState<'grid' | 'map'>('grid');
+    const [restaurants, setRestaurants] = useState<Restaurant[]>([]);
+    const [loading, setLoading] = useState(true);
 
-    // Filter restaurants based on search and type
-    const filteredRestaurants = mockRestaurants.filter((restaurant) => {
-        const matchesSearch = restaurant.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-            restaurant.cuisine.toLowerCase().includes(searchQuery.toLowerCase()) ||
-            restaurant.address.toLowerCase().includes(searchQuery.toLowerCase());
+    const supabase = createClient();
 
-        const matchesType = selectedType === 'all' || restaurant.certificationType === selectedType;
+    useEffect(() => {
+        fetchRestaurants();
+    }, [searchQuery, selectedType]);
 
-        return matchesSearch && matchesType;
-    });
+    const fetchRestaurants = async () => {
+        try {
+            setLoading(true);
+            let query = supabase.from('restaurants').select('*');
+
+            if (searchQuery) {
+                query = query.ilike('name', `%${searchQuery}%`);
+            }
+
+            if (selectedType !== 'all') {
+                query = query.eq('certification_type', selectedType);
+            }
+
+            const { data, error } = await query;
+            if (error) throw error;
+            setRestaurants(data || []);
+        } catch (error) {
+            console.error('Error fetching restaurants:', error);
+        } finally {
+            setLoading(false);
+        }
+    };
 
     return (
         <div className="min-h-screen bg-gray-50">
@@ -40,10 +59,10 @@ export default function RestaurantsPage() {
                             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
                             <input
                                 type="text"
-                                placeholder="Search restaurants, cuisine, or location..."
+                                placeholder="Search restaurants..."
                                 value={searchQuery}
                                 onChange={(e) => setSearchQuery(e.target.value)}
-                                className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
+                                className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent text-gray-900"
                             />
                         </div>
 
@@ -52,7 +71,7 @@ export default function RestaurantsPage() {
                             <select
                                 value={selectedType}
                                 onChange={(e) => setSelectedType(e.target.value)}
-                                className="px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent bg-white"
+                                className="px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent bg-white text-gray-900"
                             >
                                 <option value="all">All Types</option>
                                 <option value="halal_certified">Halal Certified</option>
@@ -86,17 +105,23 @@ export default function RestaurantsPage() {
 
                     {/* Results count */}
                     <p className="text-sm text-gray-600 mt-4">
-                        Found {filteredRestaurants.length} restaurant{filteredRestaurants.length !== 1 ? 's' : ''}
+                        {loading ? 'Searching...' : `Found ${restaurants.length} restaurant${restaurants.length !== 1 ? 's' : ''}`}
                     </p>
                 </div>
             </div>
 
             {/* Content */}
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-                {viewMode === 'grid' ? (
-                    <RestaurantGrid restaurants={filteredRestaurants} />
+                {loading ? (
+                    <div className="flex justify-center items-center py-20">
+                        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+                    </div>
                 ) : (
-                    <RestaurantMap restaurants={filteredRestaurants} />
+                    viewMode === 'grid' ? (
+                        <RestaurantGrid restaurants={restaurants} />
+                    ) : (
+                        <RestaurantMap restaurants={restaurants} />
+                    )
                 )}
             </div>
         </div>

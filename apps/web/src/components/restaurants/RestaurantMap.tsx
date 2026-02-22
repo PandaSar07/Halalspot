@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from 'react';
 import mapboxgl from 'mapbox-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
-import { Restaurant } from '@/lib/mockData';
+import type { Restaurant } from '@halalspot/shared-types';
 
 interface RestaurantMapProps {
     restaurants: Restaurant[];
@@ -54,6 +54,18 @@ export function RestaurantMap({ restaurants }: RestaurantMapProps) {
 
         // Add markers for each restaurant
         restaurants.forEach((restaurant) => {
+            // Extract coordinates from location field
+            // Assuming location is { type: 'Point', coordinates: [lng, lat] }
+            let longitude = -75.1652;
+            let latitude = 39.9526;
+
+            if (restaurant.location && typeof restaurant.location === 'object') {
+                const loc = restaurant.location as any;
+                if (loc.coordinates && Array.isArray(loc.coordinates)) {
+                    [longitude, latitude] = loc.coordinates;
+                }
+            }
+
             // Create custom marker element
             const el = document.createElement('div');
             el.className = 'custom-marker';
@@ -68,14 +80,14 @@ export function RestaurantMap({ restaurants }: RestaurantMapProps) {
             // Create popup
             const popup = new mapboxgl.Popup({ offset: 25 }).setHTML(`
         <div class="p-2">
-          <h3 class="font-semibold text-base mb-1">${restaurant.name}</h3>
-          <p class="text-sm text-gray-600 mb-1">${restaurant.cuisine}</p>
+          <h3 class="font-semibold text-base mb-1 text-gray-900">${restaurant.name}</h3>
+          <p class="text-sm text-gray-600 mb-1">Mediterranean</p>
           <div class="flex items-center gap-1 mb-2">
             <span class="text-yellow-500">★</span>
-            <span class="text-sm font-medium">${restaurant.rating}</span>
-            <span class="text-sm text-gray-500">(${restaurant.reviewCount})</span>
+            <span class="text-sm font-medium text-gray-900">4.5</span>
+            <span class="text-sm text-gray-500">(0)</span>
           </div>
-          <p class="text-xs text-gray-600">${restaurant.address}</p>
+          <p class="text-xs text-gray-600">${restaurant.address || ''}</p>
           <a href="/restaurants/${restaurant.id}" class="text-sm text-primary hover:underline mt-2 inline-block">
             View Details →
           </a>
@@ -84,7 +96,7 @@ export function RestaurantMap({ restaurants }: RestaurantMapProps) {
 
             // Add marker to map
             new mapboxgl.Marker(el)
-                .setLngLat([restaurant.longitude, restaurant.latitude])
+                .setLngLat([longitude, latitude])
                 .setPopup(popup)
                 .addTo(map.current!);
         });

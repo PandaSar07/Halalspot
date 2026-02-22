@@ -1,10 +1,10 @@
 'use client';
 
-import { Restaurant } from '@/lib/mockData';
+import type { Restaurant } from '@halalspot/shared-types';
 import { RestaurantCard } from './RestaurantCard';
 
 interface RestaurantGridProps {
-    restaurants: Restaurant[];
+    restaurants: (Restaurant & { distance_meters?: number })[];
 }
 
 export function RestaurantGrid({ restaurants }: RestaurantGridProps) {

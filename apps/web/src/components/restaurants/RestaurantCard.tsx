@@ -4,7 +4,8 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { Star, MapPin, Phone } from 'lucide-react';
 import { Card } from '@/components/ui/Card';
-import { Restaurant, getCertificationColor, getCertificationLabel } from '@/lib/mockData';
+import { getCertificationColor, getCertificationLabel } from '@/lib/utils';
+import type { Restaurant } from '@halalspot/shared-types';
 
 interface RestaurantCardProps {
     restaurant: Restaurant;
@@ -17,14 +18,14 @@ export function RestaurantCard({ restaurant, distance }: RestaurantCardProps) {
             <Card className="overflow-hidden hover:shadow-lg transition-shadow duration-300 cursor-pointer h-full">
                 <div className="relative h-48 w-full">
                     <Image
-                        src={restaurant.imageUrl}
+                        src={restaurant.image_url || 'https://images.unsplash.com/photo-1555939594-58d7cb561ad1?w=800&h=600&fit=crop'}
                         alt={restaurant.name}
                         fill
                         className="object-cover"
                     />
                     <div className="absolute top-3 right-3">
-                        <span className={`px-3 py-1 rounded-full text-xs font-medium ${getCertificationColor(restaurant.certificationType)}`}>
-                            {getCertificationLabel(restaurant.certificationType)}
+                        <span className={`px-3 py-1 rounded-full text-xs font-medium ${getCertificationColor(restaurant.certification_type)}`}>
+                            {getCertificationLabel(restaurant.certification_type)}
                         </span>
                     </div>
                 </div>
@@ -34,15 +35,15 @@ export function RestaurantCard({ restaurant, distance }: RestaurantCardProps) {
                         {restaurant.name}
                     </h3>
 
-                    <p className="text-sm text-gray-600 mb-2">{restaurant.cuisine}</p>
+                    <p className="text-sm text-gray-600 mb-2">Mediterranean</p>
 
                     <div className="flex items-center gap-2 mb-3">
                         <div className="flex items-center gap-1">
                             <Star className="w-4 h-4 fill-yellow-400 text-yellow-400" />
-                            <span className="font-medium text-gray-900">{restaurant.rating}</span>
+                            <span className="font-medium text-gray-900">4.5</span>
                         </div>
                         <span className="text-sm text-gray-500">
-                            ({restaurant.reviewCount} reviews)
+                            (0 reviews)
                         </span>
                     </div>
 
@@ -57,7 +58,7 @@ export function RestaurantCard({ restaurant, distance }: RestaurantCardProps) {
 
                     {distance && (
                         <div className="mt-2 text-sm font-medium text-primary">
-                            {distance.toFixed(1)} miles away
+                            {(distance / 1609.34).toFixed(1)} miles away
                         </div>
                     )}
 

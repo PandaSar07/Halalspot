@@ -1,7 +1,11 @@
-import { useState } from 'react';
-import { View, Text, ScrollView, StyleSheet, TextInput, TouchableOpacity, Image, Dimensions } from 'react-native';
+import { useState, useEffect } from 'react';
+import { View, Text, ScrollView, StyleSheet, TextInput, TouchableOpacity, Image, Dimensions, ActivityIndicator } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { mockRestaurants, getCertificationLabel, getCertificationColor, Restaurant } from '../../src/lib/mockData';
+import * as Location from 'expo-location';
+import { supabase } from '../../src/lib/supabase';
+import { getNearbyRestaurants } from '@halalspot/supabase';
+import { getCertificationLabel, getCertificationColor } from '../../src/lib/utils';
+import type { RestaurantWithDistance } from '@halalspot/shared-types';
 
 const filters = ['All', 'Halal Certified', 'Muslim Owned', 'Halal Options'];
 const filterMap: Record<string, string> = {
@@ -14,15 +18,68 @@ const filterMap: Record<string, string> = {
 export default function ExploreScreen() {
     const [searchQuery, setSearchQuery] = useState('');
     const [activeFilter, setActiveFilter] = useState('All');
+    const [restaurants, setRestaurants] = useState<RestaurantWithDistance[]>([]);
+    const [loading, setLoading] = useState(true);
+    const [location, setLocation] = useState<Location.LocationObject | null>(null);
 
-    const filtered = mockRestaurants.filter((r) => {
-        const matchesSearch =
-            r.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-            r.cuisine.toLowerCase().includes(searchQuery.toLowerCase()) ||
-            r.address.toLowerCase().includes(searchQuery.toLowerCase());
-        const matchesFilter = activeFilter === 'All' || r.certificationType === filterMap[activeFilter];
-        return matchesSearch && matchesFilter;
-    });
+    useEffect(() => {
+        (async () => {
+            try {
+                let { status } = await Location.requestForegroundPermissionsAsync();
+                if (status === 'granted') {
+                    let loc = await Location.getCurrentPositionAsync({});
+                    setLocation(loc);
+                }
+            } catch (e) {
+                console.warn('Error getting location in Explore:', e);
+            }
+        })();
+    }, []);
+
+    useEffect(() => {
+        fetchRestaurants();
+    }, [searchQuery, activeFilter, location]);
+
+    const fetchRestaurants = async () => {
+        try {
+            setLoading(true);
+            
+            let data: RestaurantWithDistance[] = [];
+
+            if (location && !searchQuery) {
+                // Use RPC for distance if we have location and no text search
+                data = await getNearbyRestaurants(supabase, {
+                    latitude: location.coords.latitude,
+                    longitude: location.coords.longitude
+                }, 10000);
+
+                if (activeFilter !== 'All') {
+                    data = data.filter(r => r.certification_type === filterMap[activeFilter]);
+                }
+            } else {
+                // Fallback to standard query for text search or if no location
+                let query = supabase.from('restaurants').select('*').eq('status', 'approved');
+
+                if (searchQuery) {
+                    query = query.ilike('name', `%${searchQuery}%`);
+                }
+
+                if (activeFilter !== 'All') {
+                    query = query.eq('certification_type', filterMap[activeFilter]);
+                }
+
+                const { data: results, error } = await query;
+                if (error) throw error;
+                data = (results || []) as RestaurantWithDistance[];
+            }
+
+            setRestaurants(data);
+        } catch (error) {
+            console.error('Error fetching restaurants:', error);
+        } finally {
+            setLoading(false);
+        }
+    };
 
     return (
         <View style={styles.container}>
@@ -37,7 +94,7 @@ export default function ExploreScreen() {
                 <Ionicons name="search" size={20} color="#9ca3af" style={styles.searchIcon} />
                 <TextInput
                     style={styles.searchInput}
-                    placeholder="Search name, cuisine, address..."
+                    placeholder="Search name..."
                     placeholderTextColor="#9ca3af"
                     value={searchQuery}
                     onChangeText={setSearchQuery}
@@ -63,41 +120,59 @@ export default function ExploreScreen() {
             </ScrollView>
 
             {/* Results */}
-            <Text style={styles.resultCount}>{filtered.length} restaurant{filtered.length !== 1 ? 's' : ''} found</Text>
-
-            <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.listContainer}>
-                {filtered.map((restaurant) => (
-                    <RestaurantCard key={restaurant.id} restaurant={restaurant} />
-                ))}
-                {filtered.length === 0 && (
-                    <View style={styles.empty}>
-                        <Ionicons name="restaurant-outline" size={48} color="#d1d5db" />
-                        <Text style={styles.emptyText}>No restaurants found</Text>
-                        <Text style={styles.emptySubtext}>Try adjusting your search or filters</Text>
+            <View style={{ flex: 1 }}>
+                {loading ? (
+                    <View style={styles.centered}>
+                        <ActivityIndicator color="#10b981" />
                     </View>
+                ) : (
+                    <>
+                        <Text style={styles.resultCount}>
+                            {restaurants.length} restaurant{restaurants.length !== 1 ? 's' : ''} found
+                        </Text>
+                        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.listContainer}>
+                            {restaurants.map((restaurant) => (
+                                <RestaurantCard key={restaurant.id} restaurant={restaurant} />
+                            ))}
+                            {restaurants.length === 0 && (
+                                <View style={styles.empty}>
+                                    <Ionicons name="restaurant-outline" size={48} color="#d1d5db" />
+                                    <Text style={styles.emptyText}>No restaurants found</Text>
+                                    <Text style={styles.emptySubtext}>Try adjusting your search or filters</Text>
+                                </View>
+                            )}
+                            <View style={{ height: 30 }} />
+                        </ScrollView>
+                    </>
                 )}
-                <View style={{ height: 30 }} />
-            </ScrollView>
+            </View>
         </View>
     );
 }
 
-function RestaurantCard({ restaurant }: { restaurant: Restaurant }) {
+function RestaurantCard({ restaurant }: { restaurant: RestaurantWithDistance }) {
     return (
         <TouchableOpacity style={styles.card}>
-            <Image source={{ uri: restaurant.imageUrl }} style={styles.cardImage} />
-            <View style={[styles.cardBadge, { backgroundColor: getCertificationColor(restaurant.certificationType) }]}>
-                <Text style={styles.cardBadgeText}>{getCertificationLabel(restaurant.certificationType)}</Text>
+            <Image source={{ uri: restaurant.image_url || 'https://images.unsplash.com/photo-1555939594-58d7cb561ad1?w=800&h=600&fit=crop' }} style={styles.cardImage} />
+            <View style={[styles.cardBadge, { backgroundColor: getCertificationColor(restaurant.certification_type) }]}>
+                <Text style={styles.cardBadgeText}>{getCertificationLabel(restaurant.certification_type)}</Text>
             </View>
             <View style={styles.cardContent}>
                 <View style={styles.cardRow}>
                     <Text style={styles.cardName} numberOfLines={1}>{restaurant.name}</Text>
                     <View style={styles.cardRating}>
                         <Ionicons name="star" size={13} color="#fbbf24" />
-                        <Text style={styles.cardRatingText}>{restaurant.rating}</Text>
+                        <Text style={styles.cardRatingText}>{restaurant.avg_rating?.toFixed(1) || '4.5'}</Text>
                     </View>
                 </View>
-                <Text style={styles.cardCuisine}>{restaurant.cuisine}</Text>
+                <View style={styles.cardMeta}>
+                    <Text style={styles.cardCuisine}>Mediterranean</Text>
+                    {restaurant.distance_meters && (
+                        <Text style={styles.cardDistance}>
+                            • {(restaurant.distance_meters * 0.000621371).toFixed(1)} mi
+                        </Text>
+                    )}
+                </View>
                 <Text style={styles.cardDesc} numberOfLines={2}>{restaurant.description}</Text>
                 <View style={styles.cardFooter}>
                     <Ionicons name="location-outline" size={14} color="#6b7280" />
@@ -132,11 +207,14 @@ const styles = StyleSheet.create({
     cardName: { fontSize: 18, fontWeight: '700', color: '#111827', flex: 1, marginRight: 8 },
     cardRating: { flexDirection: 'row', alignItems: 'center', gap: 3, backgroundColor: '#fef3c7', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8 },
     cardRatingText: { fontSize: 13, fontWeight: '700', color: '#92400e' },
-    cardCuisine: { fontSize: 13, color: '#10b981', fontWeight: '600', marginTop: 2 },
+    cardMeta: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 2 },
+    cardCuisine: { fontSize: 13, color: '#10b981', fontWeight: '600' },
+    cardDistance: { fontSize: 13, color: '#6b7280' },
     cardDesc: { fontSize: 13, color: '#6b7280', marginTop: 6, lineHeight: 18 },
     cardFooter: { flexDirection: 'row', alignItems: 'center', marginTop: 10, gap: 4 },
     cardAddress: { fontSize: 12, color: '#6b7280', flex: 1 },
     empty: { alignItems: 'center', paddingTop: 60 },
     emptyText: { fontSize: 17, fontWeight: '600', color: '#6b7280', marginTop: 12 },
     emptySubtext: { fontSize: 13, color: '#9ca3af', marginTop: 4 },
+    centered: { flex: 1, justifyContent: 'center', alignItems: 'center' },
 });
