@@ -13,9 +13,7 @@ import { getMenuItems, getMenuCategories } from '@halalspot/supabase';
 import type { RestaurantWithDistance } from '@halalspot/shared-types';
 
 const { width, height } = Dimensions.get('window');
-const FULL_HEIGHT = height * 0.95;     // max sheet height
-const COMPACT_OFFSET = height * 0.2;   // translateY when compact (shows 75%)
-// translateY = 0 → full, COMPACT_OFFSET → compact, FULL_HEIGHT → dismissed
+const SHEET_HEIGHT = height * 0.78;    // compact height
 
 const CERT_LABELS: Record<string, string> = {
     halal_certified: '☪ Halal Certified',
@@ -43,10 +41,9 @@ export default function RestaurantBottomSheet({ restaurant, onClose }: Props) {
     const router = useRouter();
 
     // Animation values
-    const translateY = useRef(new Animated.Value(FULL_HEIGHT)).current;
+    const translateY = useRef(new Animated.Value(SHEET_HEIGHT)).current;
     const overlayOpacity = useRef(new Animated.Value(0)).current;
     const dragY = useRef(new Animated.Value(0)).current;
-    const snapRef = useRef<'compact' | 'full'>('compact');  // current snap state
 
     const [activeTab, setActiveTab] = useState('Most Ordered');
     const [categories, setCategories] = useState<string[]>(['Most Ordered', 'Deals']);
@@ -61,39 +58,30 @@ export default function RestaurantBottomSheet({ restaurant, onClose }: Props) {
         if (!restaurant) return;
         setActiveTab('Most Ordered');
         loadMenu();
-        translateY.setValue(FULL_HEIGHT);
+        translateY.setValue(SHEET_HEIGHT);
         dragY.setValue(0);
-        snapRef.current = 'compact';
         Animated.parallel([
-            Animated.spring(translateY, { toValue: COMPACT_OFFSET, useNativeDriver: true, damping: 20, mass: 0.8, stiffness: 200 }),
+            Animated.spring(translateY, { toValue: 0, useNativeDriver: true, damping: 20, mass: 0.8, stiffness: 200 }),
             Animated.timing(overlayOpacity, { toValue: 1, duration: 250, useNativeDriver: true }),
         ]).start();
     }, [restaurant?.id]);
 
     const dismiss = () => {
         Animated.parallel([
-            Animated.spring(translateY, { toValue: FULL_HEIGHT, useNativeDriver: true, damping: 20 }),
+            Animated.spring(translateY, { toValue: SHEET_HEIGHT, useNativeDriver: true, damping: 20 }),
             Animated.timing(overlayOpacity, { toValue: 0, duration: 200, useNativeDriver: true }),
         ]).start(() => onClose());
     };
 
-    const snapToFull = () => {
-        snapRef.current = 'full';
-        Animated.spring(translateY, { toValue: 0, useNativeDriver: true, damping: 22, stiffness: 220 }).start();
+    const navigateToDetail = () => {
+        dismiss();
+        setTimeout(() => router.push(`/restaurant/${restaurant!.id}`), 280);
     };
 
-    const snapToCompact = () => {
-        snapRef.current = 'compact';
-        Animated.spring(translateY, { toValue: COMPACT_OFFSET, useNativeDriver: true, damping: 22, stiffness: 220 }).start();
-    };
-
-    // Keep live refs for all snap functions so PanResponder (created once) always calls fresh versions
+    // Keep live refs so PanResponder (created once) always calls fresh versions
     const dismissRef = useRef(dismiss);
     dismissRef.current = dismiss;
-    const snapToFullRef = useRef(snapToFull);
-    snapToFullRef.current = snapToFull;
-    const snapToCompactRef = useRef(snapToCompact);
-    snapToCompactRef.current = snapToCompact;
+
 
     const loadMenu = async () => {
         if (!restaurant) return;
@@ -112,48 +100,29 @@ export default function RestaurantBottomSheet({ restaurant, onClose }: Props) {
         }
     };
 
-    // Swipe up/down — uses dismissRef so it's never stale
+    // Swipe up → full detail page, swipe down → dismiss
+    const navigateRef = useRef(navigateToDetail);
+    navigateRef.current = navigateToDetail;
     const panResponder = useRef(PanResponder.create({
         onStartShouldSetPanResponder: () => true,
         onMoveShouldSetPanResponder: (_, { dy }) => Math.abs(dy) > 4,
         onPanResponderMove: (_, { dy }) => {
-            // Allow drag in both directions but clamp: can't drag down past FULL_HEIGHT
-            const nextVal = dy;
-            if (snapRef.current === 'compact') {
-                // Up (negative dy) limited to -COMPACT_OFFSET; down (positive) unlimited
-                dragY.setValue(Math.max(-COMPACT_OFFSET, Math.min(nextVal, FULL_HEIGHT)));
-            } else {
-                // In full: only allow drag down
-                if (dy > 0) dragY.setValue(dy);
-            }
+            dragY.setValue(dy); // allow both directions during drag
         },
         onPanResponderRelease: (_, { dy, vy }) => {
             dragY.setValue(0);
-            if (snapRef.current === 'compact') {
-                if (dy < -60 || vy < -1) {
-                    // Swiped up → expand to full
-                    snapToFullRef.current();
-                } else if (dy > 100 || vy > 1.2) {
-                    // Swiped down → dismiss
-                    dismissRef.current();
-                } else {
-                    // Snap back to compact
-                    snapToCompactRef.current();
-                }
+            if (dy < -60 || vy < -1) {
+                // Swiped up → open full detail page
+                navigateRef.current();
+            } else if (dy > 100 || vy > 1.2) {
+                // Swiped down → dismiss
+                dismissRef.current();
             } else {
-                // Currently full
-                if (dy > 100 || vy > 1.2) {
-                    // Swiped down → back to compact
-                    snapToCompactRef.current();
-                } else {
-                    // Snap back to full
-                    snapToFullRef.current();
-                }
+                // Snap back
+                Animated.spring(dragY, { toValue: 0, useNativeDriver: true, damping: 18 }).start();
             }
         },
-        onPanResponderTerminate: () => {
-            dragY.setValue(0);
-        },
+        onPanResponderTerminate: () => { dragY.setValue(0); },
     })).current;
 
     const handleTabChange = (tab: string, index: number) => {
@@ -324,7 +293,7 @@ const styles = StyleSheet.create({
     overlay: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.6)' },
     sheet: {
         position: 'absolute', bottom: 0, left: 0, right: 0,
-        height: FULL_HEIGHT,
+        height: SHEET_HEIGHT,
         borderTopLeftRadius: 28, borderTopRightRadius: 28,
         overflow: 'hidden',
         shadowColor: '#000', shadowOffset: { width: 0, height: -4 },
