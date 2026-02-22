@@ -1,23 +1,30 @@
 import { Tabs } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { View, StyleSheet } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useTheme } from '../../src/lib/ThemeContext';
 
 export default function TabLayout() {
+    const insets = useSafeAreaInsets();
+    const { theme } = useTheme();
+
     return (
         <Tabs
             screenOptions={{
-                tabBarActiveTintColor: '#10b981',
-                tabBarInactiveTintColor: '#9ca3af',
+                tabBarActiveTintColor: theme.primary,
+                tabBarInactiveTintColor: theme.textMuted,
                 tabBarStyle: {
-                    backgroundColor: '#ffffff',
+                    backgroundColor: theme.tabBar,
                     borderTopWidth: 1,
-                    borderTopColor: '#f3f4f6',
-                    height: 90,
-                    paddingBottom: 30,
-                    paddingTop: 10,
+                    borderTopColor: theme.tabBorder,
+                    height: 60 + insets.bottom,
+                    paddingBottom: insets.bottom,
+                    paddingTop: 8,
                 },
                 tabBarLabelStyle: {
-                    fontSize: 12,
-                    fontWeight: '600',
+                    fontSize: 11,
+                    fontFamily: 'Outfit-SemiBold',
+                    marginTop: 0,
                 },
                 headerShown: false,
             }}
@@ -26,8 +33,10 @@ export default function TabLayout() {
                 name="index"
                 options={{
                     title: 'Home',
-                    tabBarIcon: ({ color, size }) => (
-                        <Ionicons name="home" size={size} color={color} />
+                    tabBarIcon: ({ color, focused }) => (
+                        <View style={[styles.iconWrap, focused && { backgroundColor: theme.primaryDim }]}>
+                            <Ionicons name={focused ? 'home' : 'home-outline'} size={22} color={color} />
+                        </View>
                     ),
                 }}
             />
@@ -35,17 +44,21 @@ export default function TabLayout() {
                 name="explore"
                 options={{
                     title: 'Explore',
-                    tabBarIcon: ({ color, size }) => (
-                        <Ionicons name="search" size={size} color={color} />
+                    tabBarIcon: ({ color, focused }) => (
+                        <View style={[styles.iconWrap, focused && { backgroundColor: theme.primaryDim }]}>
+                            <Ionicons name={focused ? 'search' : 'search-outline'} size={22} color={color} />
+                        </View>
                     ),
                 }}
             />
             <Tabs.Screen
                 name="favorites"
                 options={{
-                    title: 'Favorites',
-                    tabBarIcon: ({ color, size }) => (
-                        <Ionicons name="heart" size={size} color={color} />
+                    title: 'Saved',
+                    tabBarIcon: ({ color, focused }) => (
+                        <View style={[styles.iconWrap, focused && { backgroundColor: theme.primaryDim }]}>
+                            <Ionicons name={focused ? 'heart' : 'heart-outline'} size={22} color={color} />
+                        </View>
                     ),
                 }}
             />
@@ -53,11 +66,21 @@ export default function TabLayout() {
                 name="profile"
                 options={{
                     title: 'Profile',
-                    tabBarIcon: ({ color, size }) => (
-                        <Ionicons name="person" size={size} color={color} />
+                    tabBarIcon: ({ color, focused }) => (
+                        <View style={[styles.iconWrap, focused && { backgroundColor: theme.primaryDim }]}>
+                            <Ionicons name={focused ? 'person' : 'person-outline'} size={22} color={color} />
+                        </View>
                     ),
                 }}
             />
         </Tabs>
     );
 }
+
+const styles = StyleSheet.create({
+    iconWrap: {
+        width: 36, height: 36,
+        alignItems: 'center', justifyContent: 'center',
+        borderRadius: 10,
+    },
+});
