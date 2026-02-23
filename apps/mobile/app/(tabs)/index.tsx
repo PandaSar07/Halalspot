@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import {
     View, Text, ScrollView, StyleSheet, TouchableOpacity,
     Image, Dimensions, ActivityIndicator, Animated, Pressable,
@@ -7,10 +7,12 @@ import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Location from 'expo-location';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { supabase } from '../../src/lib/supabase';
 import { getNearbyRestaurants } from '@halalspot/supabase';
 import { Radius, Shadow } from '../../src/lib/theme';
 import { useTheme } from '../../src/lib/ThemeContext';
+import RestaurantBottomSheet from '../../src/components/RestaurantBottomSheet';
 import type { RestaurantWithDistance } from '@halalspot/shared-types';
 
 const { width } = Dimensions.get('window');
@@ -37,6 +39,7 @@ export default function HomeScreen() {
     const [stats, setStats] = useState({ total: 0, certified: 0 });
     const scrollY = useRef(new Animated.Value(0)).current;
     const [searchActive, setSearchActive] = useState(false);
+    const [selectedRestaurant, setSelectedRestaurant] = useState<RestaurantWithDistance | null>(null);
 
     const STICK_AT = 320; // px scrolled before search bar appears
     const stickyOpacity = scrollY.interpolate({
@@ -114,6 +117,10 @@ export default function HomeScreen() {
         }
     };
 
+    const handleCardPress = useCallback((restaurant: RestaurantWithDistance) => {
+        setSelectedRestaurant(restaurant);
+    }, []);
+
     if (loading) {
         return (
             <View style={[styles.loadingContainer, { backgroundColor: theme.bg }]}>
@@ -190,58 +197,21 @@ export default function HomeScreen() {
                 </View>
 
                 {/* Sections */}
-                <Section title="⭐  Top Rated" data={sections.topRated} router={router} theme={theme} />
-                <Section title="📍  Near You" data={sections.nearYou} router={router} theme={theme} showDistance />
-                <Section title="🕒  Open Now" data={sections.openNow} router={router} theme={theme} />
-                <Section title="🕌  Halal Certified" data={sections.fullyCertified} router={router} theme={theme} />
+                <Section title="⭐  Top Rated" data={sections.topRated} router={router} theme={theme} onPress={handleCardPress} />
+                <Section title="📍  Near You" data={sections.nearYou} router={router} theme={theme} showDistance onPress={handleCardPress} />
+                <Section title="🕒  Open Now" data={sections.openNow} router={router} theme={theme} onPress={handleCardPress} />
+                <Section title="🕌  Halal Certified" data={sections.fullyCertified} router={router} theme={theme} onPress={handleCardPress} />
                 {Object.entries(sections.cuisines).map(([cuisine, data]) => (
-                    data.length >= 3 && <Section key={cuisine} title={`🍽  ${cuisine}`} data={data} router={router} theme={theme} />
+                    data.length >= 3 && <Section key={cuisine} title={`🍽  ${cuisine}`} data={data} router={router} theme={theme} onPress={handleCardPress} />
                 ))}
             </Animated.ScrollView>
-        </View>
-    );
-}
 
-// ─── Islamic Geometric Star-Lattice Pattern ──────────────────────────────────
-// Renders a grid of 8-pointed stars (two overlapping rotated squares per cell)
-// at very low opacity so it reads as a subtle cultural texture behind the hero.
-function IslamicPattern() {
-    const CELL = 48;           // size of each tile cell
-    const COLS = Math.ceil(width / CELL) + 1;
-    const ROWS = 7;            // enough rows to fill the hero height
-    const STAR_SIZE = 28;      // size of each rotated square
-    const OPACITY = 0.06;
-
-    return (
-        <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }}>
-            {Array.from({ length: ROWS }).map((_, row) =>
-                Array.from({ length: COLS }).map((_, col) => {
-                    const x = col * CELL - CELL / 2;
-                    const y = row * CELL - CELL / 2;
-                    return (
-                        <View key={`${row}-${col}`} style={{ position: 'absolute', left: x, top: y, width: CELL, height: CELL, alignItems: 'center', justifyContent: 'center' }}>
-                            {/* Square 1 — axis-aligned */}
-                            <View style={{
-                                position: 'absolute',
-                                width: STAR_SIZE,
-                                height: STAR_SIZE,
-                                borderWidth: 1.2,
-                                borderColor: 'rgba(255,255,255,1)',
-                                opacity: OPACITY,
-                            }} />
-                            {/* Square 2 — rotated 45° = 8-pointed star */}
-                            <View style={{
-                                position: 'absolute',
-                                width: STAR_SIZE,
-                                height: STAR_SIZE,
-                                borderWidth: 1.2,
-                                borderColor: 'rgba(255,255,255,1)',
-                                opacity: OPACITY,
-                                transform: [{ rotate: '45deg' }],
-                            }} />
-                        </View>
-                    );
-                })
+            {/* Bottom Sheet */}
+            {selectedRestaurant && (
+                <RestaurantBottomSheet
+                    restaurant={selectedRestaurant}
+                    onClose={() => setSelectedRestaurant(null)}
+                />
             )}
         </View>
     );
@@ -257,7 +227,7 @@ function StatCard({ icon, value, label, color, theme }: { icon: any; value: stri
     );
 }
 
-function Section({ title, data, router, theme, showDistance }: { title: string; data: RestaurantWithDistance[]; router: any; theme: any; showDistance?: boolean }) {
+function Section({ title, data, router, theme, showDistance, onPress }: { title: string; data: RestaurantWithDistance[]; router: any; theme: any; showDistance?: boolean; onPress: (r: RestaurantWithDistance) => void }) {
     if (data.length === 0) return null;
     return (
         <View style={styles.section}>
@@ -271,13 +241,13 @@ function Section({ title, data, router, theme, showDistance }: { title: string; 
                 </TouchableOpacity>
             </View>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.horizontalList}>
-                {data.map(r => <RestaurantCard key={r.id} restaurant={r} theme={theme} showDistance={showDistance} />)}
+                {data.map(r => <RestaurantCard key={r.id} restaurant={r} theme={theme} showDistance={showDistance} onPress={() => onPress(r)} />)}
             </ScrollView>
         </View>
     );
 }
 
-function RestaurantCard({ restaurant, theme, showDistance }: { restaurant: RestaurantWithDistance; theme: any; showDistance?: boolean }) {
+function RestaurantCard({ restaurant, theme, showDistance, onPress }: { restaurant: RestaurantWithDistance; theme: any; showDistance?: boolean; onPress: () => void }) {
     const scale = new Animated.Value(1);
     const certColors: Record<string, string> = { halal_certified: theme.certHalal, muslim_owned: theme.certMuslim, halal_options: theme.certOptions };
     const certColor = certColors[restaurant.certification_type] || theme.primary;
@@ -285,6 +255,7 @@ function RestaurantCard({ restaurant, theme, showDistance }: { restaurant: Resta
 
     return (
         <Pressable
+            onPress={onPress}
             onPressIn={() => Animated.spring(scale, { toValue: 0.97, useNativeDriver: true }).start()}
             onPressOut={() => Animated.spring(scale, { toValue: 1, useNativeDriver: true }).start()}
         >
@@ -312,7 +283,6 @@ function RestaurantCard({ restaurant, theme, showDistance }: { restaurant: Resta
 }
 
 const styles = StyleSheet.create({
-    container: { flex: 1 },
     loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', gap: 14 },
     loadingText: { fontSize: 14, fontFamily: 'Outfit' },
     hero: { paddingTop: 72, paddingBottom: 36, paddingHorizontal: 20, gap: 14, alignItems: 'center', overflow: 'hidden' },
