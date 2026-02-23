@@ -1,4 +1,4 @@
-import { createClient } from '@supabase/supabase-js';
+import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import * as SecureStore from 'expo-secure-store';
 import type { Database } from '@halalspot/shared-types';
 
@@ -22,7 +22,12 @@ if (!supabaseUrl || !supabaseAnonKey) {
     console.warn('Supabase credentials missing! Check your .env file.');
 }
 
-export const supabase = createClient<Database>(supabaseUrl, supabaseAnonKey, {
+// Use a placeholder URL if credentials are missing to prevent crash on startup
+// The app will still show a warning, and auth/data calls will fail gracefully
+const safeUrl = supabaseUrl || 'https://placeholder.supabase.co';
+const safeKey = supabaseAnonKey || 'placeholder-key';
+
+export const supabase: SupabaseClient<Database> = createClient<Database>(safeUrl, safeKey, {
     auth: {
         storage: ExpoSecureStoreAdapter as any,
         autoRefreshToken: true,
@@ -30,3 +35,5 @@ export const supabase = createClient<Database>(supabaseUrl, supabaseAnonKey, {
         detectSessionInUrl: false,
     },
 });
+
+export const isSupabaseConfigured = !!(supabaseUrl && supabaseAnonKey);
