@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import {
     View, Text, ScrollView, StyleSheet, TouchableOpacity,
     Image, Dimensions, ActivityIndicator, Animated, Pressable,
@@ -35,6 +35,23 @@ export default function HomeScreen() {
     }>({ topRated: [], nearYou: [], openNow: [], fullyCertified: [], cuisines: {} });
     const [loading, setLoading] = useState(true);
     const [stats, setStats] = useState({ total: 0, certified: 0 });
+    const scrollY = useRef(new Animated.Value(0)).current;
+    const [searchActive, setSearchActive] = useState(false);
+
+    const STICK_AT = 320; // px scrolled before search bar appears
+    const stickyOpacity = scrollY.interpolate({
+        inputRange: [STICK_AT - 40, STICK_AT],
+        outputRange: [0, 1],
+        extrapolate: 'clamp',
+    });
+
+    const handleScroll = Animated.event(
+        [{ nativeEvent: { contentOffset: { y: scrollY } } }],
+        {
+            useNativeDriver: true,
+            listener: (e: any) => setSearchActive(e.nativeEvent.contentOffset.y > STICK_AT - 20),
+        }
+    );
 
     useEffect(() => {
         (async () => {
@@ -107,15 +124,16 @@ export default function HomeScreen() {
     }
 
     return (
-        <ScrollView style={[styles.container, { backgroundColor: theme.bg }]} contentContainerStyle={{ paddingBottom: 30 }} showsVerticalScrollIndicator={false}>
-            {/* Hero */}
-            <LinearGradient colors={theme.heroBg} style={styles.hero}>
-                <View style={styles.heroPill}>
-                    <View style={[styles.heroPillDot, { backgroundColor: theme.primary }]} />
-                    <Text style={[styles.heroPillText, { color: theme.primary }]}>{stats.total} Spots in Philly</Text>
-                </View>
-                <Text style={styles.heroLogo}>HalalSpot</Text>
-                <Text style={styles.heroTagline}>The finest halal dining in Philadelphia</Text>
+        <View style={[styles.container, { backgroundColor: theme.bg }]}>
+
+            {/* Floating search bar — fades in from top once hero is scrolled past */}
+            <Animated.View
+                pointerEvents={searchActive ? 'auto' : 'none'}
+                style={[
+                    styles.floatingSearch,
+                    { opacity: stickyOpacity },
+                ]}
+            >
                 <TouchableOpacity
                     style={[styles.heroSearch, { backgroundColor: theme.bgCard, borderColor: theme.border }]}
                     activeOpacity={0.85}
@@ -127,24 +145,105 @@ export default function HomeScreen() {
                         <Ionicons name="options-outline" size={16} color={theme.primary} />
                     </View>
                 </TouchableOpacity>
-            </LinearGradient>
+            </Animated.View>
 
-            {/* Stats */}
-            <View style={styles.statsRow}>
-                <StatCard icon="storefront-outline" value={String(stats.total)} label="Places" theme={theme} />
-                <StatCard icon="shield-checkmark-outline" value={String(stats.certified)} label="Certified" color={theme.primary} theme={theme} />
-                <StatCard icon="location-outline" value="Philly" label="City" color={theme.gold} theme={theme} />
-            </View>
+            <Animated.ScrollView
+                style={{ flex: 1 }}
+                contentContainerStyle={{ paddingBottom: 30 }}
+                showsVerticalScrollIndicator={false}
+                onScroll={handleScroll}
+                scrollEventThrottle={16}
+            >
+                {/* Hero */}
+                <LinearGradient colors={theme.heroBg} style={styles.hero}>
+                    <View style={StyleSheet.absoluteFill} pointerEvents="none">
+                        <IslamicPattern />
+                    </View>
+                    <View style={styles.heroPill}>
+                        <View style={[styles.heroPillDot, { backgroundColor: theme.primary }]} />
+                        <Text style={[styles.heroPillText, { color: theme.primary }]}>{stats.total} Spots in Philly</Text>
+                    </View>
+                    <View style={styles.heroLogoLockup}>
+                        <Image source={require('../../assets/logo.png')} style={styles.heroLogoImg} resizeMode="contain" />
+                        <Text style={styles.heroLogo}>HalalSpot</Text>
+                        <Text style={styles.heroTagline}>The finest halal dining in Philadelphia</Text>
+                    </View>
+                    {/* In-hero search bar (visible when at top) */}
+                    <TouchableOpacity
+                        style={[styles.heroSearch, { backgroundColor: theme.bgCard, borderColor: theme.border }]}
+                        activeOpacity={0.85}
+                        onPress={() => router.push('/(tabs)/explore')}
+                    >
+                        <Ionicons name="search-outline" size={18} color={theme.textSecondary} />
+                        <Text style={[styles.heroSearchText, { color: theme.textMuted }]}>Restaurants, cuisines…</Text>
+                        <View style={[styles.heroSearchFilter, { backgroundColor: theme.primaryDim }]}>
+                            <Ionicons name="options-outline" size={16} color={theme.primary} />
+                        </View>
+                    </TouchableOpacity>
+                </LinearGradient>
 
-            {/* Sections */}
-            <Section title="⭐  Top Rated" data={sections.topRated} router={router} theme={theme} />
-            <Section title="📍  Near You" data={sections.nearYou} router={router} theme={theme} showDistance />
-            <Section title="🕒  Open Now" data={sections.openNow} router={router} theme={theme} />
-            <Section title="🕌  Halal Certified" data={sections.fullyCertified} router={router} theme={theme} />
-            {Object.entries(sections.cuisines).map(([cuisine, data]) => (
-                data.length >= 3 && <Section key={cuisine} title={`🍽  ${cuisine}`} data={data} router={router} theme={theme} />
-            ))}
-        </ScrollView>
+                {/* Stats */}
+                <View style={styles.statsRow}>
+                    <StatCard icon="storefront-outline" value={String(stats.total)} label="Places" theme={theme} />
+                    <StatCard icon="shield-checkmark-outline" value={String(stats.certified)} label="Certified" color={theme.primary} theme={theme} />
+                    <StatCard icon="location-outline" value="Philly" label="City" color={theme.gold} theme={theme} />
+                </View>
+
+                {/* Sections */}
+                <Section title="⭐  Top Rated" data={sections.topRated} router={router} theme={theme} />
+                <Section title="📍  Near You" data={sections.nearYou} router={router} theme={theme} showDistance />
+                <Section title="🕒  Open Now" data={sections.openNow} router={router} theme={theme} />
+                <Section title="🕌  Halal Certified" data={sections.fullyCertified} router={router} theme={theme} />
+                {Object.entries(sections.cuisines).map(([cuisine, data]) => (
+                    data.length >= 3 && <Section key={cuisine} title={`🍽  ${cuisine}`} data={data} router={router} theme={theme} />
+                ))}
+            </Animated.ScrollView>
+        </View>
+    );
+}
+
+// ─── Islamic Geometric Star-Lattice Pattern ──────────────────────────────────
+// Renders a grid of 8-pointed stars (two overlapping rotated squares per cell)
+// at very low opacity so it reads as a subtle cultural texture behind the hero.
+function IslamicPattern() {
+    const CELL = 48;           // size of each tile cell
+    const COLS = Math.ceil(width / CELL) + 1;
+    const ROWS = 7;            // enough rows to fill the hero height
+    const STAR_SIZE = 28;      // size of each rotated square
+    const OPACITY = 0.06;
+
+    return (
+        <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }}>
+            {Array.from({ length: ROWS }).map((_, row) =>
+                Array.from({ length: COLS }).map((_, col) => {
+                    const x = col * CELL - CELL / 2;
+                    const y = row * CELL - CELL / 2;
+                    return (
+                        <View key={`${row}-${col}`} style={{ position: 'absolute', left: x, top: y, width: CELL, height: CELL, alignItems: 'center', justifyContent: 'center' }}>
+                            {/* Square 1 — axis-aligned */}
+                            <View style={{
+                                position: 'absolute',
+                                width: STAR_SIZE,
+                                height: STAR_SIZE,
+                                borderWidth: 1.2,
+                                borderColor: 'rgba(255,255,255,1)',
+                                opacity: OPACITY,
+                            }} />
+                            {/* Square 2 — rotated 45° = 8-pointed star */}
+                            <View style={{
+                                position: 'absolute',
+                                width: STAR_SIZE,
+                                height: STAR_SIZE,
+                                borderWidth: 1.2,
+                                borderColor: 'rgba(255,255,255,1)',
+                                opacity: OPACITY,
+                                transform: [{ rotate: '45deg' }],
+                            }} />
+                        </View>
+                    );
+                })
+            )}
+        </View>
     );
 }
 
@@ -216,13 +315,18 @@ const styles = StyleSheet.create({
     container: { flex: 1 },
     loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', gap: 14 },
     loadingText: { fontSize: 14, fontFamily: 'Outfit' },
-    hero: { paddingTop: 70, paddingBottom: 36, paddingHorizontal: 20, gap: 10 },
-    heroPill: { flexDirection: 'row', alignItems: 'center', alignSelf: 'flex-start', gap: 6, paddingHorizontal: 12, paddingVertical: 6, backgroundColor: 'rgba(0,201,107,0.15)', borderRadius: 100, borderWidth: 1, borderColor: 'rgba(0,201,107,0.35)', marginBottom: 4 },
+    hero: { paddingTop: 72, paddingBottom: 36, paddingHorizontal: 20, gap: 14, alignItems: 'center', overflow: 'hidden' },
+    heroPill: { flexDirection: 'row', alignItems: 'center', alignSelf: 'flex-start', gap: 6, paddingHorizontal: 14, paddingVertical: 7, backgroundColor: 'rgba(0,201,107,0.15)', borderRadius: 100, borderWidth: 1, borderColor: 'rgba(0,201,107,0.4)', marginBottom: 2 },
     heroPillDot: { width: 7, height: 7, borderRadius: 4 },
     heroPillText: { fontSize: 12, fontFamily: 'Outfit-SemiBold' },
-    heroLogo: { fontSize: 44, color: '#fff', fontFamily: 'DMSerifDisplay', letterSpacing: -1.5, lineHeight: 50 },
-    heroTagline: { color: 'rgba(255,255,255,0.85)', fontSize: 14, fontFamily: 'Outfit', marginBottom: 8 },
-    heroSearch: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 14, borderRadius: 100, borderWidth: 1, gap: 10, marginTop: 6 },
+    /* logo lockup */
+    heroLogoLockup: { alignItems: 'center', gap: 6 },
+    heroLogoImg: { width: 92, height: 92, marginBottom: 4 },
+    heroGlow: { position: 'absolute', top: -24, width: 130, height: 130, borderRadius: 65, backgroundColor: 'rgba(0,201,107,0.22)', shadowColor: '#00C96B', shadowOffset: { width: 0, height: 0 }, shadowOpacity: 0.55, shadowRadius: 40, elevation: 0 },
+    heroLogo: { fontSize: 46, color: '#fff', fontFamily: 'DMSerifDisplay', letterSpacing: -1.5, lineHeight: 52, textAlign: 'center' },
+    heroTagline: { color: 'rgba(255,255,255,0.75)', fontSize: 13, fontFamily: 'Outfit', textAlign: 'center', marginTop: 2 },
+    heroSearch: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 14, borderRadius: 100, borderWidth: 1, gap: 10, width: '100%', ...Shadow.card },
+    floatingSearch: { position: 'absolute', top: 56, left: 0, right: 0, zIndex: 100, paddingHorizontal: 20 },
     heroSearchText: { flex: 1, fontSize: 14, fontFamily: 'Outfit' },
     heroSearchFilter: { width: 32, height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
     statsRow: { flexDirection: 'row', marginHorizontal: 20, marginTop: -20, gap: 10 },
