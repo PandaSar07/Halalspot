@@ -13,6 +13,7 @@ import { getNearbyRestaurants } from '@halalspot/supabase';
 import { Radius, Shadow } from '../../src/lib/theme';
 import { useTheme } from '../../src/lib/ThemeContext';
 import RestaurantBottomSheet from '../../src/components/RestaurantBottomSheet';
+import FilterPanel, { FilterState, DEFAULT_FILTERS, countActiveFilters } from '../../src/components/FilterPanel';
 import type { RestaurantWithDistance } from '@halalspot/shared-types';
 
 const { width } = Dimensions.get('window');
@@ -25,9 +26,61 @@ const CERT_LABELS: Record<string, string> = {
     halal_options: '◉ Halal Options',
 };
 
+/** Map a numeric price_level (1–3) or string to dollar signs */
+function priceLabel(r: any): string {
+    const level = (r as any).price_level ?? (r as any).price_range;
+    if (level === 1 || level === '$') return '$';
+    if (level === 2 || level === '$$') return '$$';
+    if (level === 3 || level === '$$$') return '$$$';
+    return '';
+}
+
+/** Apply client-side filtering based on active FilterState */
+function applyFilters(data: RestaurantWithDistance[], filters: FilterState, isOpenNow: (h: any) => boolean): RestaurantWithDistance[] {
+    let out = [...data];
+
+    // Cuisine
+    if (filters.cuisines.length > 0) {
+        out = out.filter(r => {
+            const c = ((r as any).cuisine || '').toLowerCase();
+            return filters.cuisines.some(fc => c.includes(fc.toLowerCase()));
+        });
+    }
+
+    // Price range
+    if (filters.priceRange.length > 0) {
+        out = out.filter(r => {
+            const p = priceLabel(r);
+            return p && filters.priceRange.includes(p);
+        });
+    }
+
+    // Min rating
+    if (filters.minRating !== null) {
+        out = out.filter(r => (r.avg_rating || 0) >= (filters.minRating as number));
+    }
+
+    // Hours
+    if (filters.hours.includes('open_now')) {
+        out = out.filter(r => isOpenNow((r as any).opening_hours));
+    }
+
+    // Sort
+    if (filters.sortBy === 'Distance') {
+        out.sort((a, b) => (a.distance_meters || 0) - (b.distance_meters || 0));
+    } else if (filters.sortBy === 'Rating') {
+        out.sort((a, b) => (b.avg_rating || 0) - (a.avg_rating || 0));
+    } else if (filters.sortBy === 'Most Reviewed') {
+        out.sort((a, b) => ((b as any).review_count || 0) - ((a as any).review_count || 0));
+    }
+
+    return out;
+}
+
 export default function HomeScreen() {
     const router = useRouter();
     const { theme } = useTheme();
+    const [allRestaurants, setAllRestaurants] = useState<RestaurantWithDistance[]>([]);
     const [sections, setSections] = useState<{
         topRated: RestaurantWithDistance[];
         nearYou: RestaurantWithDistance[];
@@ -41,7 +94,12 @@ export default function HomeScreen() {
     const [searchActive, setSearchActive] = useState(false);
     const [selectedRestaurant, setSelectedRestaurant] = useState<RestaurantWithDistance | null>(null);
 
-    const STICK_AT = 320; // px scrolled before search bar appears
+    // Filter state
+    const [filterVisible, setFilterVisible] = useState(false);
+    const [activeFilters, setActiveFilters] = useState<FilterState>(DEFAULT_FILTERS);
+    const filterCount = countActiveFilters(activeFilters);
+
+    const STICK_AT = 320;
     const stickyOpacity = scrollY.interpolate({
         inputRange: [STICK_AT - 40, STICK_AT],
         outputRange: [0, 1],
@@ -70,6 +128,13 @@ export default function HomeScreen() {
         })();
     }, []);
 
+    // Re-apply filters whenever activeFilters changes
+    useEffect(() => {
+        if (allRestaurants.length > 0) {
+            buildSections(applyFilters(allRestaurants, activeFilters, isOpenNow));
+        }
+    }, [activeFilters, allRestaurants]);
+
     const isOpenNow = (hours: any) => {
         if (!hours) return true;
         try {
@@ -81,6 +146,22 @@ export default function HomeScreen() {
             return cur >= parseInt(String(schedule.open).replace(':', '')) && cur <= parseInt(String(schedule.close).replace(':', ''));
         } catch { return true; }
     };
+
+    function buildSections(all: RestaurantWithDistance[]) {
+        const cuisineGroups: Record<string, RestaurantWithDistance[]> = {};
+        all.forEach(r => {
+            const c = (r as any).cuisine || 'Other';
+            if (!cuisineGroups[c]) cuisineGroups[c] = [];
+            if (cuisineGroups[c].length < 8) cuisineGroups[c].push(r);
+        });
+        setSections({
+            topRated: [...all].sort((a, b) => (b.avg_rating || 0) - (a.avg_rating || 0)).slice(0, 10),
+            nearYou: all.slice(0, 10),
+            openNow: all.filter(r => isOpenNow((r as any).opening_hours)).slice(0, 10),
+            fullyCertified: all.filter(r => r.certification_type === 'halal_certified').slice(0, 10),
+            cuisines: cuisineGroups,
+        });
+    }
 
     const fetchData = async (coords: { latitude: number; longitude: number }) => {
         try {
@@ -97,19 +178,8 @@ export default function HomeScreen() {
                 const { data } = await supabase.from('restaurants').select('*').eq('status', 'approved');
                 all = (data || []) as RestaurantWithDistance[];
             }
-            const cuisineGroups: Record<string, RestaurantWithDistance[]> = {};
-            all.forEach(r => {
-                const c = (r as any).cuisine || 'Other';
-                if (!cuisineGroups[c]) cuisineGroups[c] = [];
-                if (cuisineGroups[c].length < 8) cuisineGroups[c].push(r);
-            });
-            setSections({
-                topRated: [...all].sort((a, b) => (b.avg_rating || 0) - (a.avg_rating || 0)).slice(0, 10),
-                nearYou: all.slice(0, 10),
-                openNow: all.filter(r => isOpenNow((r as any).opening_hours)).slice(0, 10),
-                fullyCertified: all.filter(r => r.certification_type === 'halal_certified').slice(0, 10),
-                cuisines: cuisineGroups,
-            });
+            setAllRestaurants(all);
+            buildSections(applyFilters(all, activeFilters, isOpenNow));
         } catch (e) {
             console.error('Error:', e);
         } finally {
@@ -117,9 +187,31 @@ export default function HomeScreen() {
         }
     };
 
+    function handleApplyFilters(f: FilterState) {
+        setActiveFilters(f);
+    }
+
     const handleCardPress = useCallback((restaurant: RestaurantWithDistance) => {
         setSelectedRestaurant(restaurant);
     }, []);
+
+    /** The shared filter button JSX used in both hero + floating search bars */
+    function FilterButton() {
+        return (
+            <TouchableOpacity
+                style={[styles.heroSearchFilter, { backgroundColor: filterCount > 0 ? theme.primary : theme.primaryDim }]}
+                activeOpacity={0.8}
+                onPress={() => setFilterVisible(true)}
+            >
+                <Ionicons name="options-outline" size={16} color={filterCount > 0 ? '#fff' : theme.primary} />
+                {filterCount > 0 && (
+                    <View style={styles.filterBadge}>
+                        <Text style={styles.filterBadgeText}>{filterCount}</Text>
+                    </View>
+                )}
+            </TouchableOpacity>
+        );
+    }
 
     if (loading) {
         return (
@@ -141,17 +233,17 @@ export default function HomeScreen() {
                     { opacity: stickyOpacity },
                 ]}
             >
-                <TouchableOpacity
-                    style={[styles.heroSearch, { backgroundColor: theme.bgCard, borderColor: theme.border }]}
-                    activeOpacity={0.85}
-                    onPress={() => router.push('/(tabs)/explore')}
-                >
-                    <Ionicons name="search-outline" size={18} color={theme.textSecondary} />
-                    <Text style={[styles.heroSearchText, { color: theme.textMuted }]}>Restaurants, cuisines…</Text>
-                    <View style={[styles.heroSearchFilter, { backgroundColor: theme.primaryDim }]}>
-                        <Ionicons name="options-outline" size={16} color={theme.primary} />
-                    </View>
-                </TouchableOpacity>
+                <View style={[styles.heroSearch, { backgroundColor: theme.bgCard, borderColor: theme.border }]}>
+                    <TouchableOpacity
+                        style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 10 }}
+                        activeOpacity={0.85}
+                        onPress={() => router.push('/(tabs)/explore')}
+                    >
+                        <Ionicons name="search-outline" size={18} color={theme.textSecondary} />
+                        <Text style={[styles.heroSearchText, { color: theme.textMuted }]}>Restaurants, cuisines…</Text>
+                    </TouchableOpacity>
+                    <FilterButton />
+                </View>
             </Animated.View>
 
             <Animated.ScrollView
@@ -163,9 +255,6 @@ export default function HomeScreen() {
             >
                 {/* Hero */}
                 <LinearGradient colors={theme.heroBg} style={styles.hero}>
-                    <View style={StyleSheet.absoluteFill} pointerEvents="none">
-                        <IslamicPattern />
-                    </View>
                     <View style={styles.heroPill}>
                         <View style={[styles.heroPillDot, { backgroundColor: theme.primary }]} />
                         <Text style={[styles.heroPillText, { color: theme.primary }]}>{stats.total} Spots in Philly</Text>
@@ -176,17 +265,17 @@ export default function HomeScreen() {
                         <Text style={styles.heroTagline}>The finest halal dining in Philadelphia</Text>
                     </View>
                     {/* In-hero search bar (visible when at top) */}
-                    <TouchableOpacity
-                        style={[styles.heroSearch, { backgroundColor: theme.bgCard, borderColor: theme.border }]}
-                        activeOpacity={0.85}
-                        onPress={() => router.push('/(tabs)/explore')}
-                    >
-                        <Ionicons name="search-outline" size={18} color={theme.textSecondary} />
-                        <Text style={[styles.heroSearchText, { color: theme.textMuted }]}>Restaurants, cuisines…</Text>
-                        <View style={[styles.heroSearchFilter, { backgroundColor: theme.primaryDim }]}>
-                            <Ionicons name="options-outline" size={16} color={theme.primary} />
-                        </View>
-                    </TouchableOpacity>
+                    <View style={[styles.heroSearch, { backgroundColor: theme.bgCard, borderColor: theme.border }]}>
+                        <TouchableOpacity
+                            style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 10 }}
+                            activeOpacity={0.85}
+                            onPress={() => router.push('/(tabs)/explore')}
+                        >
+                            <Ionicons name="search-outline" size={18} color={theme.textSecondary} />
+                            <Text style={[styles.heroSearchText, { color: theme.textMuted }]}>Restaurants, cuisines…</Text>
+                        </TouchableOpacity>
+                        <FilterButton />
+                    </View>
                 </LinearGradient>
 
                 {/* Stats */}
@@ -195,6 +284,22 @@ export default function HomeScreen() {
                     <StatCard icon="shield-checkmark-outline" value={String(stats.certified)} label="Certified" color={theme.primary} theme={theme} />
                     <StatCard icon="location-outline" value="Philly" label="City" color={theme.gold} theme={theme} />
                 </View>
+
+                {/* Active filter chip summary */}
+                {filterCount > 0 && (
+                    <View style={styles.activeFiltersRow}>
+                        <Ionicons name="filter" size={14} color={theme.primary} />
+                        <Text style={[styles.activeFiltersText, { color: theme.primary }]}>
+                            {filterCount} filter{filterCount > 1 ? 's' : ''} active
+                        </Text>
+                        <TouchableOpacity
+                            onPress={() => setActiveFilters(DEFAULT_FILTERS)}
+                            hitSlop={{ top: 8, right: 8, bottom: 8, left: 8 }}
+                        >
+                            <Text style={[styles.activeFiltersClear, { color: theme.textSecondary }]}>Clear</Text>
+                        </TouchableOpacity>
+                    </View>
+                )}
 
                 {/* Sections */}
                 <Section title="⭐  Top Rated" data={sections.topRated} router={router} theme={theme} onPress={handleCardPress} />
@@ -213,6 +318,14 @@ export default function HomeScreen() {
                     onClose={() => setSelectedRestaurant(null)}
                 />
             )}
+
+            {/* Filter Panel */}
+            <FilterPanel
+                visible={filterVisible}
+                onClose={() => setFilterVisible(false)}
+                filters={activeFilters}
+                onApply={handleApplyFilters}
+            />
         </View>
     );
 }
@@ -252,6 +365,7 @@ function RestaurantCard({ restaurant, theme, showDistance, onPress }: { restaura
     const certColors: Record<string, string> = { halal_certified: theme.certHalal, muslim_owned: theme.certMuslim, halal_options: theme.certOptions };
     const certColor = certColors[restaurant.certification_type] || theme.primary;
     const certLabel = CERT_LABELS[restaurant.certification_type] || 'Halal';
+    const price = priceLabel(restaurant);
 
     return (
         <Pressable
@@ -272,6 +386,12 @@ function RestaurantCard({ restaurant, theme, showDistance, onPress }: { restaura
                     <View style={styles.cardMeta}>
                         <Ionicons name="star" size={12} color={theme.gold} />
                         <Text style={[styles.cardRating, { color: theme.gold }]}>{(restaurant.avg_rating || 0).toFixed(1)}</Text>
+                        {price ? (
+                            <>
+                                <Text style={styles.cardDistanceDot}>·</Text>
+                                <Text style={styles.cardPrice}>{price}</Text>
+                            </>
+                        ) : null}
                         {showDistance && restaurant.distance_meters ? (
                             <Text style={styles.cardDistance}>· {(restaurant.distance_meters * 0.000621371).toFixed(1)} mi</Text>
                         ) : null}
@@ -283,13 +403,13 @@ function RestaurantCard({ restaurant, theme, showDistance, onPress }: { restaura
 }
 
 const styles = StyleSheet.create({
+    container: { flex: 1 },
     loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', gap: 14 },
     loadingText: { fontSize: 14, fontFamily: 'Outfit' },
     hero: { paddingTop: 72, paddingBottom: 36, paddingHorizontal: 20, gap: 14, alignItems: 'center', overflow: 'hidden' },
     heroPill: { flexDirection: 'row', alignItems: 'center', alignSelf: 'flex-start', gap: 6, paddingHorizontal: 14, paddingVertical: 7, backgroundColor: 'rgba(0,201,107,0.15)', borderRadius: 100, borderWidth: 1, borderColor: 'rgba(0,201,107,0.4)', marginBottom: 2 },
     heroPillDot: { width: 7, height: 7, borderRadius: 4 },
     heroPillText: { fontSize: 12, fontFamily: 'Outfit-SemiBold' },
-    /* logo lockup */
     heroLogoLockup: { alignItems: 'center', gap: 6 },
     heroLogoImg: { width: 92, height: 92, marginBottom: 4 },
     heroGlow: { position: 'absolute', top: -24, width: 130, height: 130, borderRadius: 65, backgroundColor: 'rgba(0,201,107,0.22)', shadowColor: '#00C96B', shadowOffset: { width: 0, height: 0 }, shadowOpacity: 0.55, shadowRadius: 40, elevation: 0 },
@@ -299,6 +419,23 @@ const styles = StyleSheet.create({
     floatingSearch: { position: 'absolute', top: 56, left: 0, right: 0, zIndex: 100, paddingHorizontal: 20 },
     heroSearchText: { flex: 1, fontSize: 14, fontFamily: 'Outfit' },
     heroSearchFilter: { width: 32, height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
+    filterBadge: {
+        position: 'absolute', top: -4, right: -4,
+        width: 16, height: 16, borderRadius: 8,
+        backgroundColor: '#FF3B30',
+        alignItems: 'center', justifyContent: 'center',
+    },
+    filterBadgeText: { color: '#fff', fontSize: 9, fontFamily: 'Outfit-SemiBold', fontWeight: '800' },
+    activeFiltersRow: {
+        flexDirection: 'row', alignItems: 'center', gap: 6,
+        marginHorizontal: 20, marginTop: 10,
+        paddingHorizontal: 12, paddingVertical: 7,
+        backgroundColor: 'rgba(0,201,107,0.1)',
+        borderRadius: 100,
+        alignSelf: 'flex-start',
+    },
+    activeFiltersText: { fontSize: 13, fontFamily: 'Outfit-SemiBold' },
+    activeFiltersClear: { fontSize: 13, fontFamily: 'Outfit', marginLeft: 4 },
     statsRow: { flexDirection: 'row', marginHorizontal: 20, marginTop: -20, gap: 10 },
     statCard: { flex: 1, borderRadius: 20, paddingVertical: 14, paddingHorizontal: 10, alignItems: 'center', gap: 4, borderWidth: 1, ...Shadow.card },
     statValue: { fontSize: 17, fontWeight: '800', fontFamily: 'Outfit' },
@@ -319,4 +456,6 @@ const styles = StyleSheet.create({
     cardMeta: { flexDirection: 'row', alignItems: 'center', gap: 4 },
     cardRating: { fontSize: 12, fontFamily: 'Outfit-SemiBold' },
     cardDistance: { color: 'rgba(255,255,255,0.6)', fontSize: 12, fontFamily: 'Outfit' },
+    cardDistanceDot: { color: 'rgba(255,255,255,0.6)', fontSize: 12, fontFamily: 'Outfit' },
+    cardPrice: { color: 'rgba(255,255,255,0.85)', fontSize: 12, fontFamily: 'Outfit-SemiBold' },
 });
