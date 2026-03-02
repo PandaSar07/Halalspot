@@ -42,8 +42,9 @@ function applyFilters(data: RestaurantWithDistance[], filters: FilterState, isOp
     // Cuisine
     if (filters.cuisines.length > 0) {
         out = out.filter(r => {
-            const c = ((r as any).cuisine || '').toLowerCase();
-            return filters.cuisines.some(fc => c.includes(fc.toLowerCase()));
+            const c = (r as any).cuisine;
+            if (!c) return true; // Don't filter if cuisine is missing
+            return filters.cuisines.some(fc => c.toLowerCase().includes(fc.toLowerCase()));
         });
     }
 
@@ -51,13 +52,18 @@ function applyFilters(data: RestaurantWithDistance[], filters: FilterState, isOp
     if (filters.priceRange.length > 0) {
         out = out.filter(r => {
             const p = priceLabel(r);
-            return p && filters.priceRange.includes(p);
+            if (!p) return true; // Don't filter if price is missing
+            return filters.priceRange.includes(p);
         });
     }
 
     // Min rating
     if (filters.minRating !== null) {
-        out = out.filter(r => (r.avg_rating || 0) >= (filters.minRating as number));
+        out = out.filter(r => {
+            const rating = r.avg_rating;
+            if (rating === null || rating === undefined) return true; // Don't filter if rating is missing
+            return rating >= (filters.minRating as number);
+        });
     }
 
     // Hours
