@@ -42,9 +42,8 @@ function applyFilters(data: RestaurantWithDistance[], filters: FilterState, isOp
     // Cuisine
     if (filters.cuisines.length > 0) {
         out = out.filter(r => {
-            const c = (r as any).cuisine;
-            if (!c) return true; // Don't filter if cuisine is missing
-            return filters.cuisines.some(fc => c.toLowerCase().includes(fc.toLowerCase()));
+            const c = ((r as any).cuisine || '').toLowerCase();
+            return filters.cuisines.some(fc => c.includes(fc.toLowerCase()));
         });
     }
 
@@ -52,23 +51,18 @@ function applyFilters(data: RestaurantWithDistance[], filters: FilterState, isOp
     if (filters.priceRange.length > 0) {
         out = out.filter(r => {
             const p = priceLabel(r);
-            if (!p) return true; // Don't filter if price is missing
-            return filters.priceRange.includes(p);
+            return p && filters.priceRange.includes(p);
         });
     }
 
     // Min rating
     if (filters.minRating !== null) {
-        out = out.filter(r => {
-            const rating = r.avg_rating;
-            if (rating === null || rating === undefined) return true; // Don't filter if rating is missing
-            return rating >= (filters.minRating as number);
-        });
+        out = out.filter(r => (r.avg_rating || 0) >= (filters.minRating as number));
     }
 
     // Hours
     if (filters.hours.includes('open_now')) {
-        out = out.filter(r => isOpenNow((r as any).opening_hours));
+        out = out.filter(r => isOpenNow((r as any).operating_hours));
     }
 
     // Sort
@@ -163,7 +157,7 @@ export default function HomeScreen() {
         setSections({
             topRated: [...all].sort((a, b) => (b.avg_rating || 0) - (a.avg_rating || 0)).slice(0, 10),
             nearYou: all.slice(0, 10),
-            openNow: all.filter(r => isOpenNow((r as any).opening_hours)).slice(0, 10),
+            openNow: all.filter(r => isOpenNow((r as any).operating_hours)).slice(0, 10),
             fullyCertified: all.filter(r => r.certification_type === 'halal_certified').slice(0, 10),
             cuisines: cuisineGroups,
         });

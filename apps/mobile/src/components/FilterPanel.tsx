@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
     Modal,
     View,
@@ -117,39 +117,32 @@ function StepSlider({
 }: {
     steps: number[]; value: number; onChange: (v: number) => void; theme: any;
 }) {
-    const [trackWidth, setTrackWidth] = useState(width - 64);
-    const idx = steps.indexOf(value) === -1 ? 0 : steps.indexOf(value);
+    const idx = steps.indexOf(value);
     const pct = idx / (steps.length - 1);
-    const thumbLeft = pct * trackWidth - 11; // center the 22px thumb
+    const TRACK_W = width - 64;
 
-    const panRef = useRef(
-        PanResponder.create({
-            onStartShouldSetPanResponder: () => true,
-            onMoveShouldSetPanResponder: () => true,
-            onPanResponderGrant: (e) => {
-                const x = e.nativeEvent.locationX;
-                const ratio = Math.max(0, Math.min(1, x / trackWidth));
-                const newIdx = Math.round(ratio * (steps.length - 1));
-                onChange(steps[newIdx]);
-            },
-            onPanResponderMove: (e) => {
-                const x = e.nativeEvent.locationX;
-                const ratio = Math.max(0, Math.min(1, x / trackWidth));
-                const newIdx = Math.round(ratio * (steps.length - 1));
-                onChange(steps[newIdx]);
-            },
-        })
-    );
+    const panResponder = PanResponder.create({
+        onStartShouldSetPanResponder: () => true,
+        onMoveShouldSetPanResponder: () => true,
+        onPanResponderGrant: (e) => {
+            const x = e.nativeEvent.locationX;
+            const ratio = Math.max(0, Math.min(1, x / TRACK_W));
+            const newIdx = Math.round(ratio * (steps.length - 1));
+            onChange(steps[newIdx]);
+        },
+        onPanResponderMove: (e) => {
+            const x = e.nativeEvent.locationX;
+            const ratio = Math.max(0, Math.min(1, x / TRACK_W));
+            const newIdx = Math.round(ratio * (steps.length - 1));
+            onChange(steps[newIdx]);
+        },
+    });
 
     return (
         <View style={{ paddingHorizontal: 8 }}>
-            <View
-                style={[styles.sliderTrack, { backgroundColor: theme.border }]}
-                onLayout={(e) => setTrackWidth(e.nativeEvent.layout.width)}
-                {...panRef.current.panHandlers}
-            >
-                <View style={[styles.sliderFill, { width: pct * trackWidth, backgroundColor: theme.primary }]} />
-                <View style={[styles.sliderThumb, { left: thumbLeft, backgroundColor: theme.primary, borderColor: theme.bgCard }]} />
+            <View style={[styles.sliderTrack, { backgroundColor: theme.border }]} {...panResponder.panHandlers}>
+                <View style={[styles.sliderFill, { width: `${pct * 100}%` as any, backgroundColor: theme.primary }]} />
+                <View style={[styles.sliderThumb, { left: `${pct * 100}%` as any, backgroundColor: theme.primary, borderColor: theme.bgCard }]} />
             </View>
             <View style={styles.sliderLabels}>
                 {steps.map((s) => (
@@ -222,8 +215,6 @@ export default function FilterPanel({ visible, onClose, filters, onApply }: Filt
             onRequestClose={onClose}
             statusBarTranslucent
         >
-            {/* Root container — required for absolute children to have a coordinate space in transparent Modals */}
-            <View style={styles.modalRoot}>
             {/* Backdrop */}
             <TouchableOpacity style={styles.backdrop} activeOpacity={1} onPress={onClose} />
 
@@ -383,7 +374,6 @@ export default function FilterPanel({ visible, onClose, filters, onApply }: Filt
                     </TouchableOpacity>
                 </View>
             </View>
-            </View>
         </Modal>
     );
 }
@@ -393,9 +383,6 @@ export default function FilterPanel({ visible, onClose, filters, onApply }: Filt
 const SHEET_MAX_HEIGHT = height * 0.88;
 
 const styles = StyleSheet.create({
-    modalRoot: {
-        flex: 1,
-    },
     backdrop: {
         position: 'absolute',
         top: 0, left: 0, right: 0, bottom: 0,
