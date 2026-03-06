@@ -32,6 +32,9 @@ export interface Coordinates {
 export interface RestaurantWithDistance extends Restaurant {
     distance_meters?: number;
     avg_rating?: number;
+    /** Returned by PostGIS nearby_restaurants RPC */
+    latitude?: number | null;
+    longitude?: number | null;
 }
 
 // Validation schemas

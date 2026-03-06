@@ -89,10 +89,11 @@ export default function HomeScreen() {
         cuisines: Record<string, RestaurantWithDistance[]>;
     }>({ topRated: [], nearYou: [], openNow: [], fullyCertified: [], cuisines: {} });
     const [loading, setLoading] = useState(true);
-    const [stats, setStats] = useState({ total: 0, certified: 0 });
+    const [totalSpots, setTotalSpots] = useState(0);
     const scrollY = useRef(new Animated.Value(0)).current;
     const [searchActive, setSearchActive] = useState(false);
     const [selectedRestaurant, setSelectedRestaurant] = useState<RestaurantWithDistance | null>(null);
+    const [activeChip, setActiveChip] = useState<string | null>(null);
 
     // Filter state
     const [filterVisible, setFilterVisible] = useState(false);
@@ -166,11 +167,10 @@ export default function HomeScreen() {
     const fetchData = async (coords: { latitude: number; longitude: number }) => {
         try {
             setLoading(true);
-            const [{ count: total }, { count: certified }] = await Promise.all([
-                supabase.from('restaurants').select('*', { count: 'exact', head: true }),
-                supabase.from('restaurants').select('*', { count: 'exact', head: true }).eq('certification_type', 'halal_certified'),
-            ]);
-            setStats({ total: total || 0, certified: certified || 0 });
+            const { count: total } = await supabase
+                .from('restaurants')
+                .select('*', { count: 'exact', head: true });
+            setTotalSpots(total || 0);
             let all: RestaurantWithDistance[] = [];
             try {
                 all = await getNearbyRestaurants(supabase, coords, 15000);
@@ -257,7 +257,7 @@ export default function HomeScreen() {
                 <LinearGradient colors={theme.heroBg} style={styles.hero}>
                     <View style={styles.heroPill}>
                         <View style={[styles.heroPillDot, { backgroundColor: theme.primary }]} />
-                        <Text style={[styles.heroPillText, { color: theme.primary }]}>{stats.total} Spots in Philly</Text>
+                        <Text style={[styles.heroPillText, { color: theme.primary }]}>{totalSpots} Spots in Philly</Text>
                     </View>
                     <View style={styles.heroLogoLockup}>
                         <Image source={require('../../assets/logo.png')} style={styles.heroLogoImg} resizeMode="contain" />
@@ -278,12 +278,25 @@ export default function HomeScreen() {
                     </View>
                 </LinearGradient>
 
-                {/* Stats */}
-                <View style={styles.statsRow}>
-                    <StatCard icon="storefront-outline" value={String(stats.total)} label="Places" theme={theme} />
-                    <StatCard icon="shield-checkmark-outline" value={String(stats.certified)} label="Certified" color={theme.primary} theme={theme} />
-                    <StatCard icon="location-outline" value="Philly" label="City" color={theme.gold} theme={theme} />
-                </View>
+                {/* Quick Search Chips */}
+                <QuickSearchChips
+                    restaurants={allRestaurants}
+                    activeChip={activeChip}
+                    onChipPress={(cuisine) => {
+                        if (activeChip === cuisine) {
+                            // Toggle off
+                            setActiveChip(null);
+                            buildSections(applyFilters(allRestaurants, activeFilters, isOpenNow));
+                        } else {
+                            setActiveChip(cuisine);
+                            const filtered = allRestaurants.filter(r =>
+                                ((r as any).cuisine || '').toLowerCase() === cuisine.toLowerCase()
+                            );
+                            buildSections(applyFilters(filtered, activeFilters, isOpenNow));
+                        }
+                    }}
+                    theme={theme}
+                />
 
                 {/* Active filter chip summary */}
                 {filterCount > 0 && (
@@ -330,15 +343,71 @@ export default function HomeScreen() {
     );
 }
 
-function StatCard({ icon, value, label, color, theme }: { icon: any; value: string; label: string; color?: string; theme: any }) {
+// ─── Cuisine Quick Search Chips ───────────────────────────────────────────────
+
+const CUISINE_EMOJI: Record<string, string> = {
+    pakistani: '🥘', indian: '🍛', mediterranean: '🫒', american: '🍔',
+    mexican: '🌮', chinese: '🥟', thai: '🍜', japanese: '🍣',
+    italian: '🍕', african: '🫕', turkish: '🥙', lebanese: '🧆',
+    bengali: '🍲', caribbean: '🌴', french: '🥐', persian: '🍖',
+    greek: '🫒', korean: '🍱', vietnamese: '🍜', ethiopian: '🫕',
+    somali: '🍖', arabic: '🧆', halal: '🌙',
+};
+
+function QuickSearchChips({
+    restaurants, activeChip, onChipPress, theme
+}: { restaurants: RestaurantWithDistance[]; activeChip: string | null; onChipPress: (c: string) => void; theme: any }) {
+    // Build sorted unique cuisine list from loaded data
+    const cuisines = Array.from(
+        new Set(restaurants.map(r => ((r as any).cuisine || '').trim()).filter(Boolean))
+    ).sort();
+
+    if (cuisines.length === 0) return null;
+
     return (
-        <View style={[styles.statCard, { backgroundColor: theme.bgCard, borderColor: theme.border }]}>
-            <Ionicons name={icon} size={20} color={color || theme.textSecondary} />
-            <Text style={[styles.statValue, { color: color || theme.textPrimary }]}>{value}</Text>
-            <Text style={[styles.statLabel, { color: theme.textMuted }]}>{label}</Text>
+        <View style={chipStyles.wrapper}>
+            <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={chipStyles.row}
+            >
+                {cuisines.map(c => {
+                    const isActive = activeChip === c;
+                    const emoji = CUISINE_EMOJI[c.toLowerCase()] || '🍽';
+                    return (
+                        <TouchableOpacity
+                            key={c}
+                            onPress={() => onChipPress(c)}
+                            activeOpacity={0.75}
+                            style={[
+                                chipStyles.chip,
+                                { backgroundColor: isActive ? theme.primary : theme.bgCard, borderColor: isActive ? theme.primary : theme.border },
+                                Shadow.card,
+                            ]}
+                        >
+                            <Text style={chipStyles.emoji}>{emoji}</Text>
+                            <Text style={[chipStyles.label, { color: isActive ? '#fff' : theme.textPrimary }]}>
+                                {c}
+                            </Text>
+                        </TouchableOpacity>
+                    );
+                })}
+            </ScrollView>
         </View>
     );
 }
+
+const chipStyles = StyleSheet.create({
+    wrapper: { marginTop: -20, marginBottom: 4 },
+    row: { paddingHorizontal: 20, paddingVertical: 16, gap: 10 },
+    chip: {
+        flexDirection: 'row', alignItems: 'center', gap: 6,
+        paddingHorizontal: 14, paddingVertical: 9,
+        borderRadius: 100, borderWidth: 1,
+    },
+    emoji: { fontSize: 16 },
+    label: { fontSize: 13, fontFamily: 'Outfit-SemiBold' },
+});
 
 function Section({ title, data, router, theme, showDistance, onPress }: { title: string; data: RestaurantWithDistance[]; router: any; theme: any; showDistance?: boolean; onPress: (r: RestaurantWithDistance) => void }) {
     if (data.length === 0) return null;
@@ -436,10 +505,6 @@ const styles = StyleSheet.create({
     },
     activeFiltersText: { fontSize: 13, fontFamily: 'Outfit-SemiBold' },
     activeFiltersClear: { fontSize: 13, fontFamily: 'Outfit', marginLeft: 4 },
-    statsRow: { flexDirection: 'row', marginHorizontal: 20, marginTop: -20, gap: 10 },
-    statCard: { flex: 1, borderRadius: 20, paddingVertical: 14, paddingHorizontal: 10, alignItems: 'center', gap: 4, borderWidth: 1, ...Shadow.card },
-    statValue: { fontSize: 17, fontWeight: '800', fontFamily: 'Outfit' },
-    statLabel: { fontSize: 10, fontFamily: 'Outfit', textTransform: 'uppercase', letterSpacing: 0.5 },
     section: { marginTop: 30 },
     sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, marginBottom: 14 },
     sectionTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },

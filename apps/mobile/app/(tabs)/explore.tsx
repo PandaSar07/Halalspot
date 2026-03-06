@@ -1,207 +1,274 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import {
-    View, Text, ScrollView, StyleSheet, TextInput,
-    TouchableOpacity, Image, ActivityIndicator, Pressable, Animated,
+    View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Dimensions,
 } from 'react-native';
+import MapView, { Marker, PROVIDER_DEFAULT, MapMarker } from 'react-native-maps';
 import { Ionicons } from '@expo/vector-icons';
 import * as Location from 'expo-location';
+import { useFocusEffect } from 'expo-router';
 import { supabase } from '../../src/lib/supabase';
 import { getNearbyRestaurants } from '@halalspot/supabase';
-import { Radius, Shadow } from '../../src/lib/theme';
 import { useTheme } from '../../src/lib/ThemeContext';
+import { useMapContext } from '../../src/lib/MapContext';
 import RestaurantBottomSheet from '../../src/components/RestaurantBottomSheet';
 import type { RestaurantWithDistance } from '@halalspot/shared-types';
-import { LinearGradient } from 'expo-linear-gradient';
 
-const filters = ['All', 'Halal Certified', 'Muslim Owned', 'Halal Options'];
-const filterMap: Record<string, string> = {
-    'All': 'all', 'Halal Certified': 'halal_certified',
-    'Muslim Owned': 'muslim_owned', 'Halal Options': 'halal_options',
-};
-const CERT_LABELS: Record<string, string> = {
-    halal_certified: '☪ Certified', muslim_owned: '✦ Muslim Owned', halal_options: '◉ Halal Options',
-};
+const { height } = Dimensions.get('window');
+const PHILLY = { latitude: 39.9526, longitude: -75.1652 };
 
-export default function ExploreScreen() {
-    const { theme } = useTheme();
-    const [searchQuery, setSearchQuery] = useState('');
-    const [activeFilter, setActiveFilter] = useState('All');
+// Google Maps Dark Night style JSON (condensed)
+const DARK_MAP_STYLE = [
+    { elementType: 'geometry', stylers: [{ color: '#1d2c4d' }] },
+    { elementType: 'labels.text.fill', stylers: [{ color: '#8ec3b9' }] },
+    { elementType: 'labels.text.stroke', stylers: [{ color: '#1a3646' }] },
+    { featureType: 'administrative.country', elementType: 'geometry.stroke', stylers: [{ color: '#4b6878' }] },
+    { featureType: 'administrative.land_parcel', elementType: 'labels.text.fill', stylers: [{ color: '#64779e' }] },
+    { featureType: 'administrative.province', elementType: 'geometry.stroke', stylers: [{ color: '#4b6878' }] },
+    { featureType: 'landscape.man_made', elementType: 'geometry.stroke', stylers: [{ color: '#334e87' }] },
+    { featureType: 'landscape.natural', elementType: 'geometry', stylers: [{ color: '#023e58' }] },
+    { featureType: 'poi', elementType: 'geometry', stylers: [{ color: '#283d6a' }] },
+    { featureType: 'poi', elementType: 'labels.text.fill', stylers: [{ color: '#6f9ba5' }] },
+    { featureType: 'poi', elementType: 'labels.text.stroke', stylers: [{ color: '#1d2c4d' }] },
+    { featureType: 'poi.park', elementType: 'geometry.fill', stylers: [{ color: '#023e58' }] },
+    { featureType: 'poi.park', elementType: 'labels.text.fill', stylers: [{ color: '#3C7680' }] },
+    { featureType: 'road', elementType: 'geometry', stylers: [{ color: '#304a7d' }] },
+    { featureType: 'road', elementType: 'labels.text.fill', stylers: [{ color: '#98a5be' }] },
+    { featureType: 'road', elementType: 'labels.text.stroke', stylers: [{ color: '#1d2c4d' }] },
+    { featureType: 'road.highway', elementType: 'geometry', stylers: [{ color: '#2c6675' }] },
+    { featureType: 'road.highway', elementType: 'geometry.stroke', stylers: [{ color: '#255763' }] },
+    { featureType: 'road.highway', elementType: 'labels.text.fill', stylers: [{ color: '#b0d5ce' }] },
+    { featureType: 'road.highway', elementType: 'labels.text.stroke', stylers: [{ color: '#023e58' }] },
+    { featureType: 'transit', elementType: 'labels.text.fill', stylers: [{ color: '#98a5be' }] },
+    { featureType: 'transit', elementType: 'labels.text.stroke', stylers: [{ color: '#1d2c4d' }] },
+    { featureType: 'transit.line', elementType: 'geometry.fill', stylers: [{ color: '#283d6a' }] },
+    { featureType: 'transit.station', elementType: 'geometry', stylers: [{ color: '#3a4762' }] },
+    { featureType: 'water', elementType: 'geometry', stylers: [{ color: '#0e1626' }] },
+    { featureType: 'water', elementType: 'labels.text.fill', stylers: [{ color: '#4e6d70' }] },
+];
+
+export default function MapScreen() {
+    const { theme, isDark } = useTheme();
+    const { highlightedRestaurantId, setHighlightedRestaurantId } = useMapContext();
+    const mapRef = useRef<MapView>(null);
+    const markerRefs = useRef<Record<string, MapMarker | null>>({});
+
     const [restaurants, setRestaurants] = useState<RestaurantWithDistance[]>([]);
     const [loading, setLoading] = useState(true);
-    const [location, setLocation] = useState<Location.LocationObject | null>(null);
     const [selectedRestaurant, setSelectedRestaurant] = useState<RestaurantWithDistance | null>(null);
-    const handleCardPress = useCallback((r: RestaurantWithDistance) => setSelectedRestaurant(r), []);
+    const [userCoords, setUserCoords] = useState<{ latitude: number; longitude: number }>(PHILLY);
 
+    // Fetch restaurants once
     useEffect(() => {
         (async () => {
             try {
                 const { status } = await Location.requestForegroundPermissionsAsync();
+                let coords = PHILLY;
                 if (status === 'granted') {
-                    const loc = await Location.getCurrentPositionAsync({});
-                    setLocation(loc);
+                    const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+                    coords = { latitude: loc.coords.latitude, longitude: loc.coords.longitude };
+                    setUserCoords(coords);
                 }
-            } catch {}
+                let data: RestaurantWithDistance[] = [];
+                try {
+                    data = await getNearbyRestaurants(supabase, coords, 50000);
+                } catch {
+                    // Fallback: fetch all approved restaurants with coordinates extracted from PostGIS
+                    const { data: fallback } = await (supabase as any)
+                        .from('restaurants')
+                        .select('*, ST_Y(location::geometry) as latitude, ST_X(location::geometry) as longitude')
+                        .eq('status', 'approved');
+                    data = (fallback || []) as RestaurantWithDistance[];
+                }
+                setRestaurants(data);
+            } catch (e) {
+                console.error('Map fetch error:', e);
+            } finally {
+                setLoading(false);
+            }
         })();
     }, []);
 
-    useEffect(() => { fetchRestaurants(); }, [searchQuery, activeFilter, location]);
+    // Handle "Show on Map" navigation — fires each time screen comes into focus
+    useFocusEffect(useCallback(() => {
+        if (!highlightedRestaurantId || restaurants.length === 0) return;
+        const target = restaurants.find(r => r.id === highlightedRestaurantId);
+        if (!target) return;
 
-    const fetchRestaurants = async () => {
-        try {
-            setLoading(true);
-            let data: RestaurantWithDistance[] = [];
-            if (location && !searchQuery) {
-                data = await getNearbyRestaurants(supabase, {
-                    latitude: location.coords.latitude, longitude: location.coords.longitude,
-                }, 10000);
-                if (activeFilter !== 'All') {
-                    data = data.filter(r => r.certification_type === (filterMap[activeFilter] as RestaurantWithDistance['certification_type']));
-                }
-            } else {
-                let q = supabase.from('restaurants').select('*').eq('status', 'approved');
-                if (searchQuery) q = q.ilike('name', `%${searchQuery}%`);
-                if (activeFilter !== 'All') q = q.eq('certification_type', filterMap[activeFilter]);
-                const { data: res } = await q;
-                data = (res || []) as RestaurantWithDistance[];
-            }
-            setRestaurants(data);
-        } catch {} finally { setLoading(false); }
-    };
+        // Center map on the restaurant
+        if (target.latitude && target.longitude) {
+            mapRef.current?.animateToRegion({
+                latitude: Number(target.latitude),
+                longitude: Number(target.longitude),
+                latitudeDelta: 0.01,
+                longitudeDelta: 0.01,
+            }, 600);
+        }
+        // Auto-open bottom sheet
+        setSelectedRestaurant(target);
+        setHighlightedRestaurantId(null);
+    }, [highlightedRestaurantId, restaurants]));
+
+    const handleMarkerPress = useCallback((r: RestaurantWithDistance) => {
+        setSelectedRestaurant(r);
+    }, []);
 
     return (
-        <View style={[styles.container, { backgroundColor: theme.bg }]}>
-            <View style={styles.header}>
-                <Text style={[styles.title, { color: theme.textPrimary }]}>Explore</Text>
-                <Text style={[styles.subtitle, { color: theme.textSecondary }]}>Philadelphia Halal Spots</Text>
-            </View>
-
-            <View style={[styles.searchBar, { backgroundColor: theme.bgCard, borderColor: theme.border }]}>
-                <Ionicons name="search-outline" size={18} color={theme.textMuted} />
-                <TextInput
-                    style={[styles.searchInput, { color: theme.textPrimary }]}
-                    placeholder="Search name, cuisine…"
-                    placeholderTextColor={theme.textMuted}
-                    value={searchQuery}
-                    onChangeText={setSearchQuery}
-                />
-                {searchQuery.length > 0 && (
-                    <TouchableOpacity onPress={() => setSearchQuery('')}>
-                        <Ionicons name="close-circle" size={18} color={theme.textMuted} />
-                    </TouchableOpacity>
-                )}
-            </View>
-
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterRow}>
-                {filters.map(f => (
-                    <TouchableOpacity
-                        key={f}
-                        style={[styles.chip, { backgroundColor: theme.bgCard, borderColor: theme.border }, activeFilter === f && { backgroundColor: theme.primaryDim, borderColor: theme.primary }]}
-                        onPress={() => setActiveFilter(f)}
-                    >
-                        <Text style={[styles.chipText, { color: theme.textSecondary }, activeFilter === f && { color: theme.primary }]}>{f}</Text>
-                    </TouchableOpacity>
-                ))}
-            </ScrollView>
-
-            {loading ? (
-                <View style={styles.centered}>
-                    <ActivityIndicator color={theme.primary} />
+        <View style={styles.container}>
+            {loading && (
+                <View style={[styles.loadingOverlay, { backgroundColor: theme.bg }]}>
+                    <ActivityIndicator color={theme.primary} size="large" />
+                    <Text style={[styles.loadingText, { color: theme.textSecondary }]}>Loading Halal Spots…</Text>
                 </View>
-            ) : (
-                <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.list}>
-                    <Text style={[styles.count, { color: theme.textMuted }]}>{restaurants.length} restaurants</Text>
-                    {restaurants.map(r => <ExploreCard key={r.id} restaurant={r} theme={theme} onPress={() => handleCardPress(r)} />)}
-                    {restaurants.length === 0 && (
-                        <View style={styles.empty}>
-                            <Ionicons name="restaurant-outline" size={48} color={theme.textMuted} />
-                            <Text style={[styles.emptyText, { color: theme.textSecondary }]}>No places found</Text>
-                        </View>
-                    )}
-                    <View style={{ height: 30 }} />
-                </ScrollView>
             )}
+
+            <MapView
+                ref={mapRef}
+                style={styles.map}
+                provider={PROVIDER_DEFAULT}
+                showsUserLocation
+                showsMyLocationButton={false}
+                initialRegion={{
+                    ...userCoords,
+                    latitudeDelta: 0.05,
+                    longitudeDelta: 0.05,
+                }}
+                customMapStyle={isDark ? DARK_MAP_STYLE : []}
+            >
+                {restaurants.map(r => {
+                    const lat = Number((r as any).latitude);
+                    const lng = Number((r as any).longitude);
+                    if (!lat || !lng) return null;
+                    return (
+                        <Marker
+                            key={r.id}
+                            ref={(ref: MapMarker | null) => { markerRefs.current[r.id] = ref; }}
+                            coordinate={{ latitude: lat, longitude: lng }}
+                            onPress={() => handleMarkerPress(r)}
+                            tracksViewChanges={false}
+                        >
+                            <MapPin selected={selectedRestaurant?.id === r.id} />
+                        </Marker>
+                    );
+                })}
+            </MapView>
+
+            {/* Top count badge */}
+            {!loading && (
+                <View style={[styles.badge, { backgroundColor: theme.bgCard, borderColor: theme.border }]}>
+                    <View style={[styles.badgeDot, { backgroundColor: theme.primary }]} />
+                    <Text style={[styles.badgeText, { color: theme.textPrimary }]}>
+                        {restaurants.length} Halal Spots
+                    </Text>
+                </View>
+            )}
+
+            {/* Location recenter button */}
+            <TouchableOpacity
+                style={[styles.myLocationBtn, { backgroundColor: theme.bgCard, borderColor: theme.border }]}
+                onPress={() => {
+                    mapRef.current?.animateToRegion({ ...userCoords, latitudeDelta: 0.03, longitudeDelta: 0.03 }, 500);
+                }}
+            >
+                <Ionicons name="locate" size={20} color={theme.primary} />
+            </TouchableOpacity>
+
+            {/* Bottom Sheet */}
             {selectedRestaurant && (
                 <RestaurantBottomSheet
                     restaurant={selectedRestaurant}
                     onClose={() => setSelectedRestaurant(null)}
+                    snapHeight={height * 0.52}
                 />
             )}
         </View>
     );
 }
 
-function ExploreCard({ restaurant, theme, onPress }: { restaurant: RestaurantWithDistance; theme: any; onPress: () => void }) {
-    const scale = new Animated.Value(1);
-    const certColors: Record<string, string> = { halal_certified: theme.certHalal, muslim_owned: theme.certMuslim, halal_options: theme.certOptions };
-    const certColor = certColors[restaurant.certification_type] || theme.primary;
-    const certLabel = CERT_LABELS[restaurant.certification_type] || 'Halal';
-
+/** Custom map pin in halal green */
+function MapPin({ selected }: { selected: boolean }) {
     return (
-        <Pressable
-            onPress={onPress}
-            onPressIn={() => Animated.spring(scale, { toValue: 0.98, useNativeDriver: true }).start()}
-            onPressOut={() => Animated.spring(scale, { toValue: 1, useNativeDriver: true }).start()}
-        >
-            <Animated.View style={[styles.card, { backgroundColor: theme.bgCard, borderColor: theme.border, transform: [{ scale }] }]}>
-                <View style={styles.cardImageWrap}>
-                    <Image
-                        source={{ uri: restaurant.image_url || 'https://images.unsplash.com/photo-1555939594-58d7cb561ad1?w=800&h=500&fit=crop' }}
-                        style={styles.cardImage}
-                    />
-                    <LinearGradient colors={['transparent', 'rgba(0,0,0,0.5)']} style={StyleSheet.absoluteFill} />
-                    <View style={[styles.certBadge, { backgroundColor: certColor + '22', borderColor: certColor + '55' }]}>
-                        <Text style={[styles.certBadgeText, { color: certColor }]}>{certLabel}</Text>
-                    </View>
-                </View>
-                <View style={styles.cardBody}>
-                    <Text style={[styles.cardName, { color: theme.textPrimary }]} numberOfLines={1}>{restaurant.name}</Text>
-                    <Text style={[styles.cardDesc, { color: theme.textSecondary }]} numberOfLines={2}>{restaurant.description || 'Authentic halal dining.'}</Text>
-                    <View style={styles.cardFooter}>
-                        <View style={[styles.ratingRow, { backgroundColor: theme.goldDim }]}>
-                            <Ionicons name="star" size={12} color={theme.gold} />
-                            <Text style={[styles.ratingText, { color: theme.gold }]}>{(restaurant.avg_rating || 0).toFixed(1)}</Text>
-                        </View>
-                        {restaurant.distance_meters ? (
-                            <Text style={[styles.distText, { color: theme.textMuted, backgroundColor: theme.bgElevated }]}>{(restaurant.distance_meters * 0.000621371).toFixed(1)} mi</Text>
-                        ) : null}
-                        <View style={styles.addressRow}>
-                            <Ionicons name="location-outline" size={12} color={theme.textMuted} />
-                            <Text style={[styles.addressText, { color: theme.textMuted }]} numberOfLines={1}>{restaurant.address}</Text>
-                        </View>
-                    </View>
-                </View>
-            </Animated.View>
-        </Pressable>
+        <View style={[styles.pin, selected && styles.pinSelected]}>
+            <Ionicons name="restaurant" size={14} color="#fff" />
+            {selected && <View style={styles.pinPulse} />}
+        </View>
     );
 }
 
 const styles = StyleSheet.create({
     container: { flex: 1 },
-    header: { paddingTop: 62, paddingHorizontal: 20, paddingBottom: 4 },
-    title: { fontSize: 30, fontFamily: 'DMSerifDisplay', letterSpacing: -1 },
-    subtitle: { fontSize: 13, fontFamily: 'Outfit', marginTop: 2 },
-    searchBar: { flexDirection: 'row', alignItems: 'center', gap: 10, marginHorizontal: 20, marginTop: 14, borderRadius: 100, paddingHorizontal: 16, height: 50, borderWidth: 1 },
-    searchInput: { flex: 1, fontSize: 14, fontFamily: 'Outfit' },
-    filterRow: { paddingHorizontal: 20, paddingVertical: 12, gap: 8 },
-    chip: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 100, borderWidth: 1 },
-    chipText: { fontSize: 12, fontFamily: 'Outfit-SemiBold' },
-    count: { fontSize: 12, fontFamily: 'Outfit', marginBottom: 12, paddingHorizontal: 20 },
-    list: { paddingHorizontal: 20 },
-    centered: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-    empty: { alignItems: 'center', paddingTop: 60, gap: 12 },
-    emptyText: { fontSize: 16, fontFamily: 'Outfit' },
-    card: { borderRadius: 20, marginBottom: 16, overflow: 'hidden', borderWidth: 1, ...Shadow.card },
-    cardImageWrap: { height: 180 },
-    cardImage: { width: '100%', height: '100%' },
-    certBadge: { position: 'absolute', bottom: 10, left: 12, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 100, borderWidth: 1 },
-    certBadgeText: { fontSize: 11, fontFamily: 'Outfit-SemiBold' },
-    cardBody: { padding: 14 },
-    cardName: { fontSize: 18, fontFamily: 'Outfit-SemiBold', fontWeight: '700', marginBottom: 4 },
-    cardDesc: { fontSize: 13, fontFamily: 'Outfit', lineHeight: 19, marginBottom: 10 },
-    cardFooter: { flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' },
-    ratingRow: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8 },
-    ratingText: { fontSize: 12, fontFamily: 'Outfit-SemiBold' },
-    distText: { fontSize: 12, fontFamily: 'Outfit', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8 },
-    addressRow: { flexDirection: 'row', alignItems: 'center', gap: 4, flex: 1 },
-    addressText: { fontSize: 12, fontFamily: 'Outfit', flex: 1 },
+    map: { flex: 1 },
+    loadingOverlay: {
+        ...StyleSheet.absoluteFillObject,
+        zIndex: 10,
+        justifyContent: 'center',
+        alignItems: 'center',
+        gap: 14,
+    },
+    loadingText: { fontSize: 14, fontFamily: 'Outfit' },
+    badge: {
+        position: 'absolute',
+        top: 60,
+        alignSelf: 'center',
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 6,
+        paddingHorizontal: 14,
+        paddingVertical: 8,
+        borderRadius: 100,
+        borderWidth: 1,
+        shadowColor: '#000',
+        shadowOpacity: 0.12,
+        shadowRadius: 8,
+        shadowOffset: { width: 0, height: 3 },
+        elevation: 4,
+    },
+    badgeDot: { width: 7, height: 7, borderRadius: 4 },
+    badgeText: { fontSize: 13, fontFamily: 'Outfit-SemiBold' },
+    myLocationBtn: {
+        position: 'absolute',
+        bottom: 36,
+        right: 20,
+        width: 46,
+        height: 46,
+        borderRadius: 23,
+        borderWidth: 1,
+        alignItems: 'center',
+        justifyContent: 'center',
+        shadowColor: '#000',
+        shadowOpacity: 0.14,
+        shadowRadius: 8,
+        shadowOffset: { width: 0, height: 3 },
+        elevation: 5,
+    },
+    pin: {
+        width: 34,
+        height: 34,
+        borderRadius: 17,
+        backgroundColor: '#00C96B',
+        alignItems: 'center',
+        justifyContent: 'center',
+        borderWidth: 2.5,
+        borderColor: '#fff',
+        shadowColor: '#00C96B',
+        shadowOpacity: 0.5,
+        shadowRadius: 6,
+        shadowOffset: { width: 0, height: 2 },
+        elevation: 6,
+    },
+    pinSelected: {
+        width: 42,
+        height: 42,
+        borderRadius: 21,
+        backgroundColor: '#00A855',
+        shadowOpacity: 0.7,
+        shadowRadius: 10,
+    },
+    pinPulse: {
+        position: 'absolute',
+        width: 56,
+        height: 56,
+        borderRadius: 28,
+        borderWidth: 2,
+        borderColor: 'rgba(0, 201, 107, 0.4)',
+    },
 });
