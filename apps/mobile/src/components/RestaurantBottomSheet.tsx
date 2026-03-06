@@ -13,7 +13,7 @@ import { getMenuItems, getMenuCategories } from '@halalspot/supabase';
 import type { RestaurantWithDistance } from '@halalspot/shared-types';
 
 const { width, height } = Dimensions.get('window');
-const SHEET_HEIGHT = height * 0.78;    // compact height
+const DEFAULT_SHEET_HEIGHT = height * 0.78;
 
 const CERT_LABELS: Record<string, string> = {
     halal_certified: '☪ Halal Certified',
@@ -34,14 +34,18 @@ type MenuItem = {
 type Props = {
     restaurant: RestaurantWithDistance | null;
     onClose: () => void;
+    /** Optional override: snap the sheet to this pixel height instead of the default 78% */
+    snapHeight?: number;
 };
 
-export default function RestaurantBottomSheet({ restaurant, onClose }: Props) {
+export default function RestaurantBottomSheet({ restaurant, onClose, snapHeight }: Props) {
+    const SHEET_HEIGHT = snapHeight ?? DEFAULT_SHEET_HEIGHT;
     const { theme } = useTheme();
     const router = useRouter();
 
     // Animation values
-    const translateY = useRef(new Animated.Value(SHEET_HEIGHT)).current;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    const translateY = useRef(new Animated.Value(snapHeight ?? DEFAULT_SHEET_HEIGHT)).current;
     const overlayOpacity = useRef(new Animated.Value(0)).current;
     const dragY = useRef(new Animated.Value(0)).current;
 
@@ -293,7 +297,6 @@ const styles = StyleSheet.create({
     overlay: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.6)' },
     sheet: {
         position: 'absolute', bottom: 0, left: 0, right: 0,
-        height: SHEET_HEIGHT,
         borderTopLeftRadius: 28, borderTopRightRadius: 28,
         overflow: 'hidden',
         shadowColor: '#000', shadowOffset: { width: 0, height: -4 },

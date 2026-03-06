@@ -32,6 +32,9 @@ export interface Coordinates {
 export interface RestaurantWithDistance extends Restaurant {
     distance_meters?: number;
     avg_rating?: number;
+    /** Returned by PostGIS nearby_restaurants RPC */
+    latitude?: number | null;
+    longitude?: number | null;
 }
 
 // Validation schemas
@@ -40,15 +43,36 @@ export const coordinatesSchema = z.object({
     longitude: z.number().min(-180).max(180),
 });
 
+// Operating hours schemas
+const dayHoursSchema = z.union([
+    z.object({
+        open: z.string().regex(/^\d{2}:\d{2}$/, 'Format: HH:MM'),  // e.g. "09:00"
+        close: z.string().regex(/^\d{2}:\d{2}$/, 'Format: HH:MM'), // e.g. "22:00"
+        closed: z.literal(false).optional(),
+    }),
+    z.object({ closed: z.literal(true) }),
+]);
+
+export const operatingHoursSchema = z.object({
+    mon: dayHoursSchema.optional(),
+    tue: dayHoursSchema.optional(),
+    wed: dayHoursSchema.optional(),
+    thu: dayHoursSchema.optional(),
+    fri: dayHoursSchema.optional(),
+    sat: dayHoursSchema.optional(),
+    sun: dayHoursSchema.optional(),
+}).optional();
+
+export type OperatingHours = z.infer<typeof operatingHoursSchema>;
+
 export const restaurantInsertSchema = z.object({
     name: z.string().min(1).max(255),
     description: z.string().max(1000).optional(),
     location: coordinatesSchema,
     address: z.string().max(500).optional(),
     cuisine: z.string().max(100).optional(),
-    opening_hours: z.any().optional(),
+    operating_hours: operatingHoursSchema,
     certification_type: z.enum(['halal_certified', 'muslim_owned', 'halal_options']),
-    certification_details: z.string().max(500).optional(),
     phone: z.string().max(20).optional(),
     website: z.string().url().optional(),
     image_url: z.string().url().optional(),

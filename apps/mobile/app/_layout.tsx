@@ -13,6 +13,7 @@ import {
 import * as SplashScreen from 'expo-splash-screen';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { ThemeProvider, useTheme } from '../src/lib/ThemeContext';
+import { MapProvider } from '../src/lib/MapContext';
 
 SplashScreen.preventAutoHideAsync();
 
@@ -48,7 +49,9 @@ export default function RootLayout() {
     return (
         <GestureHandlerRootView style={{ flex: 1 }}>
             <ThemeProvider>
-                <AppNavigator />
+                <MapProvider>
+                    <AppNavigator />
+                </MapProvider>
             </ThemeProvider>
         </GestureHandlerRootView>
     );

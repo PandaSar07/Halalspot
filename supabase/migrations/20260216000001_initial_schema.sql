@@ -27,7 +27,6 @@ CREATE TABLE public.restaurants (
   location GEOGRAPHY(POINT, 4326) NOT NULL, -- PostGIS geography type
   address TEXT,
   certification_type certification_type NOT NULL,
-  certification_details TEXT,
   phone TEXT,
   website TEXT,
   image_url TEXT,
