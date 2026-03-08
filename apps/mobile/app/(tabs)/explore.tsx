@@ -126,34 +126,6 @@ export default function MapScreen() {
 
     return (
         <View style={styles.container}>
-            {/* Search Bar Overlay */}
-            <View style={styles.searchContainer} pointerEvents="box-none">
-                <View style={[styles.searchBar, { backgroundColor: theme.bgCard, borderColor: theme.border }]}>
-                    <Ionicons name="search-outline" size={20} color={theme.textMuted} />
-                    <TextInput
-                        style={[styles.searchInput, { color: theme.textPrimary }]}
-                        placeholder="Search map for restaurants..."
-                        placeholderTextColor={theme.textMuted}
-                        value={searchQuery}
-                        onChangeText={setSearchQuery}
-                        returnKeyType="search"
-                        onSubmitEditing={() => Keyboard.dismiss()}
-                    />
-                    {searchQuery.length > 0 && (
-                        <TouchableOpacity onPress={() => setSearchQuery('')} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
-                            <Ionicons name="close-circle" size={18} color={theme.textMuted} />
-                        </TouchableOpacity>
-                    )}
-                </View>
-            </View>
-
-            {loading && (
-                <View style={[styles.loadingOverlay, { backgroundColor: theme.bg }]}>
-                    <ActivityIndicator color={theme.primary} size="large" />
-                    <Text style={[styles.loadingText, { color: theme.textSecondary }]}>Loading Halal Spots…</Text>
-                </View>
-            )}
-
             <MapView
                 ref={mapRef}
                 style={styles.map}
@@ -166,7 +138,6 @@ export default function MapScreen() {
                     longitudeDelta: 0.05,
                 }}
                 customMapStyle={isDark ? DARK_MAP_STYLE : []}
-                onTouchStart={() => Keyboard.dismiss()}
                 onPress={() => {
                     setSelectedRestaurant(null);
                     Keyboard.dismiss();
@@ -190,6 +161,34 @@ export default function MapScreen() {
                     );
                 })}
             </MapView>
+
+            {/* Search Bar Overlay */}
+            <View style={styles.searchContainer} pointerEvents="box-none">
+                <View style={[styles.searchBar, { backgroundColor: theme.bgCard, borderColor: theme.border }]}>
+                    <Ionicons name="search-outline" size={20} color={theme.textMuted} />
+                    <TextInput
+                        style={[styles.searchInput, { color: theme.textPrimary }]}
+                        placeholder="Search map for restaurants..."
+                        placeholderTextColor={theme.textMuted}
+                        value={searchQuery}
+                        onChangeText={setSearchQuery}
+                        returnKeyType="search"
+                        onSubmitEditing={() => Keyboard.dismiss()}
+                    />
+                    {searchQuery.length > 0 && (
+                        <TouchableOpacity onPress={() => setSearchQuery('')} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+                            <Ionicons name="close-circle" size={18} color={theme.textMuted} />
+                        </TouchableOpacity>
+                    )}
+                </View>
+            </View>
+
+            {loading && (
+                <View style={[styles.loadingOverlay, { backgroundColor: theme.bg }]} pointerEvents="none">
+                    <ActivityIndicator color={theme.primary} size="large" />
+                    <Text style={[styles.loadingText, { color: theme.textSecondary }]}>Loading Halal Spots…</Text>
+                </View>
+            )}
 
             {/* Top count badge */}
             {!loading && (
