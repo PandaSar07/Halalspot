@@ -284,8 +284,8 @@ const styles = StyleSheet.create({
         marginBottom: 8, // Little bit of space equivalent to the old tip
     },
     pinLogo: {
-        width: 44,
-        height: 44,
+        width: 52,
+        height: 52,
         // Counter-rotate the logo so it sits upright
         transform: [{ rotate: '-45deg' }],
     },
