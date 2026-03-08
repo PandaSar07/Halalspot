@@ -9,7 +9,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import { useTheme } from '../lib/ThemeContext';
 import { supabase } from '../lib/supabase';
-import { getMenuItems, getMenuCategories } from '@halalspot/supabase';
+import { getMenuItems, getMenuCategories, isRestaurantFavorited, toggleFavorite } from '@halalspot/supabase';
 import type { RestaurantWithDistance } from '@halalspot/shared-types';
 
 const { width, height } = Dimensions.get('window');
@@ -49,6 +49,8 @@ export default function RestaurantBottomSheet({ restaurant, onClose }: Props) {
     const [categories, setCategories] = useState<string[]>(['Most Ordered', 'Deals']);
     const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
     const [menuLoading, setMenuLoading] = useState(false);
+    const [isFavorite, setIsFavorite] = useState(false);
+    const [userId, setUserId] = useState<string | null>(null);
     const tabIndicatorX = useRef(new Animated.Value(0)).current;
 
     const TAB_WIDTH = width / Math.min(4, categories.length);
@@ -58,6 +60,7 @@ export default function RestaurantBottomSheet({ restaurant, onClose }: Props) {
         if (!restaurant) return;
         setActiveTab('Most Ordered');
         loadMenu();
+        loadFavoriteStatus();
         translateY.setValue(SHEET_HEIGHT);
         dragY.setValue(0);
         Animated.parallel([
@@ -97,6 +100,30 @@ export default function RestaurantBottomSheet({ restaurant, onClose }: Props) {
             console.error('Menu error:', e);
         } finally {
             setMenuLoading(false);
+        }
+    };
+
+    const loadFavoriteStatus = async () => {
+        if (!restaurant) return;
+        try {
+            const { data } = await supabase.auth.getUser();
+            if (data.user) {
+                setUserId(data.user.id);
+                const favorited = await isRestaurantFavorited(supabase, data.user.id, restaurant.id);
+                setIsFavorite(favorited);
+            }
+        } catch {}
+    };
+
+    const handleFavorite = async (e: any) => {
+        e.stopPropagation();
+        if (!userId || !restaurant) return;
+        try {
+            setIsFavorite(!isFavorite); // optimistic
+            const newValue = await toggleFavorite(supabase, userId, restaurant.id);
+            setIsFavorite(newValue);
+        } catch (e) {
+            setIsFavorite(!isFavorite);
         }
     };
 
@@ -174,16 +201,25 @@ export default function RestaurantBottomSheet({ restaurant, onClose }: Props) {
                             style={styles.heroImage}
                         />
                         <LinearGradient colors={['transparent', 'rgba(0,0,0,0.65)']} style={StyleSheet.absoluteFill} />
-                        {/* Expand button */}
-                        <TouchableOpacity
-                            style={styles.expandBtn}
-                            onPress={() => {
-                                dismiss();
-                                setTimeout(() => router.push(`/restaurant/${restaurant.id}`), 300);
-                            }}
-                        >
-                            <Ionicons name="expand-outline" size={18} color="#111" />
-                        </TouchableOpacity>
+                        {/* Action buttons wrapper to position top-right */}
+                        <View style={styles.heroActionsContainer}>
+                            <TouchableOpacity
+                                style={styles.circleBtn}
+                                onPress={handleFavorite}
+                            >
+                                <Ionicons name={isFavorite ? "heart" : "heart-outline"} size={18} color={isFavorite ? "#ef4444" : "#111"} />
+                            </TouchableOpacity>
+                            {/* Expand button */}
+                            <TouchableOpacity
+                                style={styles.circleBtn}
+                                onPress={() => {
+                                    dismiss();
+                                    setTimeout(() => router.push(`/restaurant/${restaurant.id}`), 300);
+                                }}
+                            >
+                                <Ionicons name="expand-outline" size={18} color="#111" />
+                            </TouchableOpacity>
+                        </View>
                     </View>
 
                     {/* Content */}
@@ -196,12 +232,20 @@ export default function RestaurantBottomSheet({ restaurant, onClose }: Props) {
                                 <Text style={[styles.pillText, { color: certColor }]}>{certLabel}</Text>
                             </View>
                             {restaurant.distance_meters ? (
-                                <View style={[styles.pill, { backgroundColor: theme.bgElevated, borderColor: theme.border }]}>
+                                <TouchableOpacity 
+                                    style={[styles.pill, { backgroundColor: theme.bgElevated, borderColor: theme.border }]}
+                                    onPress={() => {
+                                        dismiss();
+                                        // Slight delay so the modal can close smoothly before navigating
+                                        setTimeout(() => router.replace('/(tabs)/explore'), 300);
+                                    }}
+                                >
                                     <Ionicons name="location-outline" size={12} color={theme.textSecondary} />
                                     <Text style={[styles.pillText, { color: theme.textSecondary }]}>
                                         {(restaurant.distance_meters * 0.000621371).toFixed(1)} mi
                                     </Text>
-                                </View>
+                                    <Ionicons name="chevron-forward" size={10} color={theme.textSecondary} style={{ marginLeft: -2 }} />
+                                </TouchableOpacity>
                             ) : null}
                             <View style={[styles.pill, { backgroundColor: '#00C96B20', borderColor: '#00C96B55' }]}>
                                 <View style={styles.openDot} />
@@ -303,8 +347,8 @@ const styles = StyleSheet.create({
     handle: { width: 36, height: 4, borderRadius: 2 },
     heroWrap: { width: '100%', height: 180, position: 'relative' },
     heroImage: { width: '100%', height: '100%' },
-    expandBtn: {
-        position: 'absolute', top: 12, right: 12,
+    heroActionsContainer: { position: 'absolute', top: 12, right: 12, flexDirection: 'row', gap: 8 },
+    circleBtn: {
         width: 36, height: 36, borderRadius: 18,
         backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center',
         shadowColor: '#000', shadowOpacity: 0.15, shadowRadius: 6, shadowOffset: { width: 0, height: 2 },

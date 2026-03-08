@@ -8,7 +8,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { supabase } from '../../src/lib/supabase';
-import { getRestaurantById, getMenuItems, getMenuCategories, getRestaurantReviews } from '@halalspot/supabase';
+import { getRestaurantById, getMenuItems, getMenuCategories, getRestaurantReviews, isRestaurantFavorited, toggleFavorite } from '@halalspot/supabase';
 import { useTheme } from '../../src/lib/ThemeContext';
 import { Radius, Shadow } from '../../src/lib/theme';
 
@@ -38,6 +38,8 @@ export default function RestaurantDetailPage() {
     const [reviews, setReviews] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
     const [deliveryMode, setDeliveryMode] = useState<'delivery' | 'pickup'>('delivery');
+    const [isFavorite, setIsFavorite] = useState(false);
+    const [userId, setUserId] = useState<string | null>(null);
     const tabIndicator = useRef(new RNAnimated.Value(0)).current;
 
     useEffect(() => {
@@ -47,20 +49,38 @@ export default function RestaurantDetailPage() {
     const loadData = async () => {
         try {
             setLoading(true);
-            const [rest, items, cats, revs] = await Promise.all([
+            const { data: { user } } = await supabase.auth.getUser();
+            if (user) setUserId(user.id);
+
+            const [rest, items, cats, revs, favorited] = await Promise.all([
                 getRestaurantById(supabase, id!),
                 getMenuItems(supabase, id!),
                 getMenuCategories(supabase, id!),
                 getRestaurantReviews(supabase, id!),
+                user ? isRestaurantFavorited(supabase, user.id, id!) : false,
             ]);
             setRestaurant(rest);
             setMenuItems(items as MenuItem[]);
             setCategories(cats.length > 0 ? cats : ['Most Ordered', 'Deals']);
             setReviews(revs);
+            setIsFavorite(favorited);
         } catch (e) {
             console.error('Detail page error:', e);
         } finally {
             setLoading(false);
+        }
+    };
+
+    const handleFavorite = async () => {
+        if (!userId) return;
+        try {
+            // Optimistic update
+            setIsFavorite(!isFavorite);
+            const newValue = await toggleFavorite(supabase, userId, id!);
+            setIsFavorite(newValue);
+        } catch (e) {
+            setIsFavorite(!isFavorite); // Revert on failure
+            console.error('Failed to toggle favorite:', e);
         }
     };
 
@@ -112,8 +132,8 @@ export default function RestaurantDetailPage() {
                             <Ionicons name="arrow-back" size={20} color="#111" />
                         </TouchableOpacity>
                         <View style={styles.heroActionsRight}>
-                            <TouchableOpacity style={styles.heroBtn}>
-                                <Ionicons name="heart-outline" size={20} color="#111" />
+                            <TouchableOpacity style={styles.heroBtn} onPress={handleFavorite}>
+                                <Ionicons name={isFavorite ? "heart" : "heart-outline"} size={20} color={isFavorite ? "#ef4444" : "#111"} />
                             </TouchableOpacity>
                             <TouchableOpacity style={styles.heroBtn}>
                                 <Ionicons name="share-outline" size={20} color="#111" />

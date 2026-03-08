@@ -60,7 +60,7 @@ export default function ExploreScreen() {
             } else {
                 let q = supabase.from('restaurants').select('*').eq('status', 'approved');
                 if (searchQuery) q = q.ilike('name', `%${searchQuery}%`);
-                if (activeFilter !== 'All') q = q.eq('certification_type', filterMap[activeFilter]);
+                if (activeFilter !== 'All') q = q.eq('certification_type', filterMap[activeFilter] as NonNullable<RestaurantWithDistance['certification_type']>);
                 const { data: res } = await q;
                 data = (res || []) as RestaurantWithDistance[];
             }
