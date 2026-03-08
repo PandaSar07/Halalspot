@@ -1,0 +1,27 @@
+﻿Starting project at C:\Users\rahmo\Documents\HalalSpot\apps\mobile
+Starting Metro Bundler
+node.exe : CommandError: 
+"expo-location" is added as 
+a dependency in your 
+project's package.json but 
+it doesn't seem to be 
+installed. Run "npm 
+install", or the equivalent 
+for your package manager, 
+and try again.
+At line:1 char:1
++ & "C:\Program 
+Files\nodejs/node.exe" 
+"C:\Program 
+Files\nodejs/node_mo ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~
+    + CategoryInfo          
+    : NotSpecified: (Comma  
+  ndError: "... and try a   
+ gain.:String) [], Remot    
+eException
+    + FullyQualifiedErrorId 
+    : NativeCommandError
+ 

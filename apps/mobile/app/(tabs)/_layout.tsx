@@ -43,10 +43,10 @@ export default function TabLayout() {
             <Tabs.Screen
                 name="explore"
                 options={{
-                    title: 'Explore',
+                    title: 'Map',
                     tabBarIcon: ({ color, focused }) => (
                         <View style={[styles.iconWrap, focused && { backgroundColor: theme.primaryDim }]}>
-                            <Ionicons name={focused ? 'search' : 'search-outline'} size={22} color={color} />
+                            <Ionicons name={focused ? 'map' : 'map-outline'} size={22} color={color} />
                         </View>
                     ),
                 }}

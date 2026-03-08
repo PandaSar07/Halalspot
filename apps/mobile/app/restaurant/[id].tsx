@@ -10,6 +10,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { supabase } from '../../src/lib/supabase';
 import { getRestaurantById, getMenuItems, getMenuCategories, getRestaurantReviews, isRestaurantFavorited, toggleFavorite } from '@halalspot/supabase';
 import { useTheme } from '../../src/lib/ThemeContext';
+import { useMapContext } from '../../src/lib/MapContext';
 import { Radius, Shadow } from '../../src/lib/theme';
 
 const { width } = Dimensions.get('window');
@@ -31,6 +32,7 @@ export default function RestaurantDetailPage() {
     const { theme } = useTheme();
     const router = useRouter();
     const insets = useSafeAreaInsets();
+    const { setHighlightedRestaurantId } = useMapContext();
     const [restaurant, setRestaurant] = useState<any>(null);
     const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
     const [categories, setCategories] = useState<string[]>(['Most Ordered', 'Deals']);
@@ -137,6 +139,16 @@ export default function RestaurantDetailPage() {
                             </TouchableOpacity>
                             <TouchableOpacity style={styles.heroBtn}>
                                 <Ionicons name="share-outline" size={20} color="#111" />
+                            </TouchableOpacity>
+                            <TouchableOpacity
+                                style={styles.heroBtn}
+                                onPress={() => {
+                                    setHighlightedRestaurantId(id!);
+                                    router.push('/(tabs)/explore');
+                                }}
+                                accessibilityLabel="Show on Map"
+                            >
+                                <Ionicons name="location" size={20} color="#00C96B" />
                             </TouchableOpacity>
                             <TouchableOpacity style={styles.heroBtn}>
                                 <Ionicons name="ellipsis-horizontal" size={20} color="#111" />

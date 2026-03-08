@@ -1,8 +1,9 @@
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Switch } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Switch, Alert } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Radius, Shadow } from '../../src/lib/theme';
 import { useTheme } from '../../src/lib/ThemeContext';
+import { useAuth } from '../../src/lib/AuthContext';
 
 const menuItems = [
     { icon: 'heart-outline', label: 'Saved Restaurants', desc: 'Your bookmarked spots' },
@@ -15,6 +16,21 @@ const menuItems = [
 
 export default function ProfileScreen() {
     const { theme, isDark, toggleTheme } = useTheme();
+    const { user, signOut } = useAuth();
+
+    const displayName = user?.user_metadata?.full_name ?? user?.user_metadata?.name ?? 'Halal Spot User';
+    const displayEmail = user?.email ?? '';
+
+    const handleSignOut = () => {
+        Alert.alert(
+            'Sign Out',
+            'Are you sure you want to sign out?',
+            [
+                { text: 'Cancel', style: 'cancel' },
+                { text: 'Sign Out', style: 'destructive', onPress: signOut },
+            ]
+        );
+    };
 
     return (
         <ScrollView style={[styles.container, { backgroundColor: theme.bg }]} showsVerticalScrollIndicator={false}>
@@ -25,11 +41,17 @@ export default function ProfileScreen() {
                         <Ionicons name="person" size={36} color={theme.primary} />
                     </View>
                 </View>
-                <Text style={styles.name}>Guest User</Text>
-                <Text style={styles.email}>Sign in to access your profile</Text>
-                <TouchableOpacity style={[styles.signInBtn, { backgroundColor: theme.primary }]}>
-                    <Text style={[styles.signInBtnText, { color: theme.bg }]}>Sign In</Text>
-                </TouchableOpacity>
+                <Text style={styles.name}>{displayName}</Text>
+                <Text style={styles.email}>{displayEmail}</Text>
+                {user ? (
+                    <TouchableOpacity style={[styles.signInBtn, { backgroundColor: 'rgba(255,255,255,0.12)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.2)' }]} onPress={handleSignOut}>
+                        <Text style={[styles.signInBtnText, { color: '#fff' }]}>Sign Out</Text>
+                    </TouchableOpacity>
+                ) : (
+                    <TouchableOpacity style={[styles.signInBtn, { backgroundColor: theme.primary }]}>
+                        <Text style={[styles.signInBtnText, { color: theme.bg }]}>Sign In</Text>
+                    </TouchableOpacity>
+                )}
             </LinearGradient>
 
             {/* Mini Stats */}
