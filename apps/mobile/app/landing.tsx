@@ -7,17 +7,9 @@ import {
     Image,
     Dimensions,
     ActivityIndicator,
-    Platform,
+    Animated,
+    Easing,
 } from 'react-native';
-import Animated, {
-    useSharedValue,
-    useAnimatedStyle,
-    withSpring,
-    withTiming,
-    withDelay,
-    withSequence,
-    runOnJS,
-} from 'react-native-reanimated';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
@@ -34,57 +26,69 @@ export default function LandingScreen() {
     const [oauthLoading, setOauthLoading] = React.useState<'google' | 'apple' | null>(null);
     const [oauthError, setOauthError] = React.useState<string | null>(null);
 
-    // Animation values
-    const pinY = useSharedValue(-200);
-    const pinScale = useSharedValue(1);
-    const pinOpacity = useSharedValue(0);
-    const shadowScale = useSharedValue(0);
-    const contentOpacity = useSharedValue(0);
-    const contentY = useSharedValue(30);
+    // ── Animation values (all plain RN Animated) ─────────────────────────────
+    const pinY = useRef(new Animated.Value(-220)).current;
+    const pinScale = useRef(new Animated.Value(1)).current;
+    const shadowScale = useRef(new Animated.Value(0)).current;
+    const contentOpacity = useRef(new Animated.Value(0)).current;
+    const contentY = useRef(new Animated.Value(24)).current;
 
     useEffect(() => {
-        // Step 1: Pin drops in
-        pinOpacity.value = withTiming(1, { duration: 100 });
-        pinY.value = withSpring(0, {
-            damping: 12,
-            stiffness: 180,
-            mass: 0.8,
-        });
+        // Step 1: pin drops with spring (overshoot = bounce)
+        Animated.spring(pinY, {
+            toValue: 0,
+            tension: 60,
+            friction: 7,
+            useNativeDriver: true,
+        }).start();
 
-        // Step 2: Shadow appears as pin lands
-        shadowScale.value = withDelay(400, withSpring(1, { damping: 15, stiffness: 200 }));
+        // Step 2: shadow appears as pin lands
+        Animated.sequence([
+            Animated.delay(380),
+            Animated.spring(shadowScale, {
+                toValue: 1,
+                tension: 80,
+                friction: 8,
+                useNativeDriver: true,
+            }),
+        ]).start();
 
-        // Step 3: Subtle bounce squish on the pin
-        pinScale.value = withDelay(
-            500,
-            withSequence(
-                withSpring(0.88, { damping: 8, stiffness: 400 }),
-                withSpring(1, { damping: 10, stiffness: 300 }),
-            )
-        );
+        // Step 3: pin squish on land
+        Animated.sequence([
+            Animated.delay(480),
+            Animated.spring(pinScale, {
+                toValue: 0.88,
+                tension: 300,
+                friction: 5,
+                useNativeDriver: true,
+            }),
+            Animated.spring(pinScale, {
+                toValue: 1,
+                tension: 200,
+                friction: 8,
+                useNativeDriver: true,
+            }),
+        ]).start();
 
-        // Step 4: Content fades + slides in
-        contentOpacity.value = withDelay(650, withTiming(1, { duration: 450 }));
-        contentY.value = withDelay(650, withSpring(0, { damping: 20, stiffness: 200 }));
+        // Step 4: content fades + slides up
+        Animated.sequence([
+            Animated.delay(640),
+            Animated.parallel([
+                Animated.timing(contentOpacity, {
+                    toValue: 1,
+                    duration: 420,
+                    easing: Easing.out(Easing.quad),
+                    useNativeDriver: true,
+                }),
+                Animated.spring(contentY, {
+                    toValue: 0,
+                    tension: 80,
+                    friction: 12,
+                    useNativeDriver: true,
+                }),
+            ]),
+        ]).start();
     }, []);
-
-    const pinAnimStyle = useAnimatedStyle(() => ({
-        transform: [
-            { translateY: pinY.value },
-            { scale: pinScale.value },
-        ],
-        opacity: pinOpacity.value,
-    }));
-
-    const shadowAnimStyle = useAnimatedStyle(() => ({
-        transform: [{ scaleX: shadowScale.value }],
-        opacity: shadowScale.value * 0.4,
-    }));
-
-    const contentAnimStyle = useAnimatedStyle(() => ({
-        opacity: contentOpacity.value,
-        transform: [{ translateY: contentY.value }],
-    }));
 
     const handleGoogle = async () => {
         setOauthError(null);
@@ -117,33 +121,56 @@ export default function LandingScreen() {
             start={{ x: 0.3, y: 0 }}
             end={{ x: 0.7, y: 1 }}
         >
-            {/* Subtle radial glow behind pin */}
+            {/* Radial glow */}
             <View style={styles.glowContainer} pointerEvents="none">
-                <View style={[styles.glow, { backgroundColor: 'rgba(0,201,107,0.12)' }]} />
+                <View style={styles.glow} />
             </View>
 
             {/* Pin drop zone */}
             <View style={styles.pinContainer}>
-                <Animated.View style={[styles.pinWrapper, pinAnimStyle]}>
-                    {/* Custom pin shape using the logo */}
-                    <View style={styles.pinBody}>
-                        <View style={[styles.pinBg, { backgroundColor: '#00C96B' }]}>
-                            <Image
-                                source={require('../assets/logo.png')}
-                                style={styles.pinLogo}
-                                resizeMode="contain"
-                            />
-                        </View>
-                        <View style={[styles.pinTip, { borderTopColor: '#00C96B' }]} />
+                <Animated.View
+                    style={[
+                        styles.pinWrapper,
+                        {
+                            transform: [
+                                { translateY: pinY },
+                                { scale: pinScale },
+                            ],
+                        },
+                    ]}
+                >
+                    <View style={styles.pinBg}>
+                        <Image
+                            source={require('../assets/logo.png')}
+                            style={styles.pinLogo}
+                            resizeMode="contain"
+                        />
                     </View>
+                    <View style={styles.pinTip} />
                 </Animated.View>
 
-                {/* Drop shadow ellipse */}
-                <Animated.View style={[styles.pinShadow, shadowAnimStyle]} />
+                {/* Drop shadow */}
+                <Animated.View
+                    style={[
+                        styles.pinShadow,
+                        {
+                            transform: [{ scaleX: shadowScale }],
+                            opacity: shadowScale,
+                        },
+                    ]}
+                />
             </View>
 
             {/* Wordmark + tagline + buttons */}
-            <Animated.View style={[styles.content, contentAnimStyle]}>
+            <Animated.View
+                style={[
+                    styles.content,
+                    {
+                        opacity: contentOpacity,
+                        transform: [{ translateY: contentY }],
+                    },
+                ]}
+            >
                 <Text style={styles.wordmark}>Halal Spot</Text>
                 <Text style={styles.tagline}>Find halal food near you</Text>
 
@@ -176,7 +203,7 @@ export default function LandingScreen() {
                             <ActivityIndicator size="small" color="#fff" />
                         ) : (
                             <>
-                                <Ionicons name="logo-apple" size={20} color="#fff" style={styles.btnIcon} />
+                                <Ionicons name="logo-apple" size={20} color="#fff" />
                                 <Text style={[styles.btnText, { color: '#fff' }]}>Continue with Apple</Text>
                             </>
                         )}
@@ -184,12 +211,12 @@ export default function LandingScreen() {
 
                     {/* Email */}
                     <TouchableOpacity
-                        style={[styles.btn, styles.btnEmail, { borderColor: 'rgba(0,201,107,0.5)' }]}
+                        style={[styles.btn, styles.btnEmail]}
                         onPress={() => handleEmail('signin')}
                         activeOpacity={0.85}
                         disabled={oauthLoading !== null}
                     >
-                        <Ionicons name="mail-outline" size={20} color="#00C96B" style={styles.btnIcon} />
+                        <Ionicons name="mail-outline" size={20} color="#00C96B" />
                         <Text style={[styles.btnText, { color: '#00C96B' }]}>Continue with Email</Text>
                     </TouchableOpacity>
 
@@ -200,9 +227,9 @@ export default function LandingScreen() {
 
                 {/* Sign-up footer */}
                 <View style={styles.footer}>
-                    <Text style={styles.footerText}>Don't have an account?{' '}</Text>
+                    <Text style={styles.footerText}>Don't have an account? </Text>
                     <TouchableOpacity onPress={() => handleEmail('signup')} activeOpacity={0.7}>
-                        <Text style={[styles.footerLink, { color: '#00C96B' }]}>Sign up</Text>
+                        <Text style={styles.footerLink}>Sign up</Text>
                     </TouchableOpacity>
                 </View>
             </Animated.View>
@@ -226,6 +253,7 @@ const styles = StyleSheet.create({
         height: 300,
         borderRadius: 150,
         top: SCREEN_HEIGHT * 0.15,
+        backgroundColor: 'rgba(0,201,107,0.12)',
     },
     pinContainer: {
         alignItems: 'center',
@@ -236,15 +264,13 @@ const styles = StyleSheet.create({
     pinWrapper: {
         alignItems: 'center',
     },
-    pinBody: {
-        alignItems: 'center',
-    },
     pinBg: {
-        width: 72,
-        height: 72,
-        borderRadius: 36,
+        width: 60,  // Reduced from 72 to 60 for a tighter wrap
+        height: 60, // Reduced from 72 to 60
+        borderRadius: 30, // Half of width/height
         alignItems: 'center',
         justifyContent: 'center',
+        backgroundColor: '#00C96B',
         shadowColor: '#00C96B',
         shadowOffset: { width: 0, height: 4 },
         shadowOpacity: 0.6,
@@ -252,24 +278,25 @@ const styles = StyleSheet.create({
         elevation: 12,
     },
     pinLogo: {
-        width: 52,
-        height: 52,
+        width: 48,  // Scaled down slightly to fit the new tighter container
+        height: 48,
     },
     pinTip: {
         width: 0,
         height: 0,
-        borderLeftWidth: 10,
-        borderRightWidth: 10,
-        borderTopWidth: 18,
+        borderLeftWidth: 8,   // Reduced from 10 to 8 for a sharper point
+        borderRightWidth: 8,  // Reduced from 10 to 8
+        borderTopWidth: 16,   // Reduced from 18 to 16
         borderLeftColor: 'transparent',
         borderRightColor: 'transparent',
-        marginTop: -2,
+        borderTopColor: '#00C96B',
+        marginTop: -3,        // Pulled up slightly to ensure no gap
     },
     pinShadow: {
         width: 48,
         height: 10,
         borderRadius: 24,
-        backgroundColor: '#000',
+        backgroundColor: 'rgba(0,0,0,0.5)',
         marginTop: 4,
     },
     content: {
@@ -319,14 +346,12 @@ const styles = StyleSheet.create({
     btnEmail: {
         backgroundColor: 'transparent',
         borderWidth: 1.5,
+        borderColor: 'rgba(0,201,107,0.5)',
     },
     btnText: {
         fontSize: 15,
         fontFamily: 'Outfit-SemiBold',
         fontWeight: '600',
-    },
-    btnIcon: {
-        // icon spacing handled by gap
     },
     googleG: {
         fontSize: 17,
@@ -354,5 +379,6 @@ const styles = StyleSheet.create({
     footerLink: {
         fontFamily: 'Outfit-SemiBold',
         fontSize: 14,
+        color: '#00C96B',
     },
 });

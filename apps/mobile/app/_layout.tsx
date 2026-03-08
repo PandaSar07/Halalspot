@@ -61,7 +61,7 @@ function AppNavigator() {
             <SessionGate />
             <Stack screenOptions={{ headerShown: false }}>
                 <Stack.Screen name="landing" />
-                <Stack.Screen name="(auth)" />
+                <Stack.Screen name="(auth)/email" />
                 <Stack.Screen name="(tabs)" />
                 <Stack.Screen name="restaurant/[id]" options={{ animation: 'slide_from_bottom' }} />
             </Stack>
