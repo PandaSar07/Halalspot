@@ -246,7 +246,7 @@ export default function RestaurantBottomSheet({ restaurant, onClose, snapHeight 
                                         }
                                         dismiss();
                                         // Slight delay so the modal can close smoothly before navigating
-                                        setTimeout(() => router.replace('/(tabs)/explore'), 300);
+                                        setTimeout(() => router.push('/(tabs)/explore'), 300);
                                     }}
                                 >
                                     <Ionicons name="location-outline" size={12} color={theme.textSecondary} />
