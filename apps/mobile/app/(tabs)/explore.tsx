@@ -1,6 +1,6 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import {
-    View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Dimensions, Image
+    View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Dimensions, Image, TextInput, Keyboard
 } from 'react-native';
 import MapView, { Marker, PROVIDER_DEFAULT, MapMarker } from 'react-native-maps';
 import { Ionicons } from '@expo/vector-icons';
@@ -56,6 +56,7 @@ export default function MapScreen() {
     const [loading, setLoading] = useState(true);
     const [selectedRestaurant, setSelectedRestaurant] = useState<RestaurantWithDistance | null>(null);
     const [userCoords, setUserCoords] = useState<{ latitude: number; longitude: number }>(PHILLY);
+    const [searchQuery, setSearchQuery] = useState('');
 
     // Fetch restaurants once
     useEffect(() => {
@@ -88,6 +89,16 @@ export default function MapScreen() {
         })();
     }, []);
 
+    // Filtered restaurants for the map pins based on search query
+    const filteredRestaurants = useMemo(() => {
+        if (!searchQuery.trim()) return restaurants;
+        const q = searchQuery.toLowerCase();
+        return restaurants.filter(r => 
+            r.name.toLowerCase().includes(q) || 
+            (r as any).cuisine?.toLowerCase().includes(q)
+        );
+    }, [restaurants, searchQuery]);
+
     // Handle "Show on Map" navigation — fires each time screen comes into focus
     useFocusEffect(useCallback(() => {
         if (!highlightedRestaurantId || restaurants.length === 0) return;
@@ -110,10 +121,32 @@ export default function MapScreen() {
 
     const handleMarkerPress = useCallback((r: RestaurantWithDistance) => {
         setSelectedRestaurant(r);
+        Keyboard.dismiss();
     }, []);
 
     return (
         <View style={styles.container}>
+            {/* Search Bar Overlay */}
+            <View style={styles.searchContainer} pointerEvents="box-none">
+                <View style={[styles.searchBar, { backgroundColor: theme.bgCard, borderColor: theme.border }]}>
+                    <Ionicons name="search-outline" size={20} color={theme.textMuted} />
+                    <TextInput
+                        style={[styles.searchInput, { color: theme.textPrimary }]}
+                        placeholder="Search map for restaurants..."
+                        placeholderTextColor={theme.textMuted}
+                        value={searchQuery}
+                        onChangeText={setSearchQuery}
+                        returnKeyType="search"
+                        onSubmitEditing={() => Keyboard.dismiss()}
+                    />
+                    {searchQuery.length > 0 && (
+                        <TouchableOpacity onPress={() => setSearchQuery('')} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+                            <Ionicons name="close-circle" size={18} color={theme.textMuted} />
+                        </TouchableOpacity>
+                    )}
+                </View>
+            </View>
+
             {loading && (
                 <View style={[styles.loadingOverlay, { backgroundColor: theme.bg }]}>
                     <ActivityIndicator color={theme.primary} size="large" />
@@ -133,8 +166,13 @@ export default function MapScreen() {
                     longitudeDelta: 0.05,
                 }}
                 customMapStyle={isDark ? DARK_MAP_STYLE : []}
+                onTouchStart={() => Keyboard.dismiss()}
+                onPress={() => {
+                    setSelectedRestaurant(null);
+                    Keyboard.dismiss();
+                }}
             >
-                {restaurants.map(r => {
+                {filteredRestaurants.map(r => {
                     const lat = Number((r as any).latitude);
                     const lng = Number((r as any).longitude);
                     if (!lat || !lng) return null;
@@ -204,6 +242,35 @@ function MapPin({ selected }: { selected: boolean }) {
 const styles = StyleSheet.create({
     container: { flex: 1 },
     map: { flex: 1 },
+    searchContainer: {
+        position: 'absolute',
+        top: 60,
+        left: 0,
+        right: 0,
+        paddingHorizontal: 20,
+        zIndex: 20,
+        elevation: 10,
+    },
+    searchBar: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        borderWidth: 1,
+        borderRadius: 100,
+        paddingHorizontal: 16,
+        paddingVertical: 12,
+        gap: 10,
+        shadowColor: '#000',
+        shadowOpacity: 0.1,
+        shadowRadius: 8,
+        shadowOffset: { width: 0, height: 4 },
+        elevation: 5,
+    },
+    searchInput: {
+        flex: 1,
+        fontSize: 15,
+        fontFamily: 'Outfit',
+        height: 20,
+    },
     loadingOverlay: {
         ...StyleSheet.absoluteFillObject,
         zIndex: 10,
@@ -214,7 +281,7 @@ const styles = StyleSheet.create({
     loadingText: { fontSize: 14, fontFamily: 'Outfit' },
     badge: {
         position: 'absolute',
-        top: 60,
+        top: 125,
         alignSelf: 'center',
         flexDirection: 'row',
         alignItems: 'center',

@@ -12,6 +12,7 @@ import { supabase } from '../../src/lib/supabase';
 import { getNearbyRestaurants } from '@halalspot/supabase';
 import { Radius, Shadow } from '../../src/lib/theme';
 import { useTheme } from '../../src/lib/ThemeContext';
+import { useMapContext } from '../../src/lib/MapContext';
 import RestaurantBottomSheet from '../../src/components/RestaurantBottomSheet';
 import FilterPanel, { FilterState, DEFAULT_FILTERS, countActiveFilters } from '../../src/components/FilterPanel';
 import type { RestaurantWithDistance } from '@halalspot/shared-types';
@@ -437,6 +438,8 @@ function Section({ title, data, router, theme, showDistance, onPress }: { title:
 
 function RestaurantCard({ restaurant, theme, showDistance, onPress }: { restaurant: RestaurantWithDistance; theme: any; showDistance?: boolean; onPress: () => void }) {
     const scale = new Animated.Value(1);
+    const router = useRouter();
+    const { setHighlightedRestaurantId } = useMapContext();
     const certColors: Record<string, string> = { halal_certified: theme.certHalal, muslim_owned: theme.certMuslim, halal_options: theme.certOptions };
     const certColor = certColors[restaurant.certification_type] || theme.primary;
     const certLabel = CERT_LABELS[restaurant.certification_type] || 'Halal';
@@ -468,7 +471,16 @@ function RestaurantCard({ restaurant, theme, showDistance, onPress }: { restaura
                             </>
                         ) : null}
                         {showDistance && restaurant.distance_meters ? (
-                            <Text style={styles.cardDistance}>· {(restaurant.distance_meters * 0.000621371).toFixed(1)} mi</Text>
+                            <TouchableOpacity
+                                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                                onPress={(e) => {
+                                    e.stopPropagation();
+                                    setHighlightedRestaurantId(restaurant.id);
+                                    router.push('/(tabs)/explore');
+                                }}
+                            >
+                                <Text style={styles.cardDistance}>· {(restaurant.distance_meters * 0.000621371).toFixed(1)} mi</Text>
+                            </TouchableOpacity>
                         ) : null}
                     </View>
                 </LinearGradient>

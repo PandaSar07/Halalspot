@@ -10,6 +10,7 @@ import { useRouter } from 'expo-router';
 import { useTheme } from '../lib/ThemeContext';
 import { supabase } from '../lib/supabase';
 import { getMenuItems, getMenuCategories, isRestaurantFavorited, toggleFavorite } from '@halalspot/supabase';
+import { useMapContext } from '../lib/MapContext';
 import type { RestaurantWithDistance } from '@halalspot/shared-types';
 
 const { width, height } = Dimensions.get('window');
@@ -42,6 +43,7 @@ export default function RestaurantBottomSheet({ restaurant, onClose, snapHeight 
     const SHEET_HEIGHT = snapHeight ?? DEFAULT_SHEET_HEIGHT;
     const { theme } = useTheme();
     const router = useRouter();
+    const { setHighlightedRestaurantId } = useMapContext();
 
     // Animation values
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -239,6 +241,9 @@ export default function RestaurantBottomSheet({ restaurant, onClose, snapHeight 
                                 <TouchableOpacity 
                                     style={[styles.pill, { backgroundColor: theme.bgElevated, borderColor: theme.border }]}
                                     onPress={() => {
+                                        if (setHighlightedRestaurantId) {
+                                            setHighlightedRestaurantId(restaurant.id);
+                                        }
                                         dismiss();
                                         // Slight delay so the modal can close smoothly before navigating
                                         setTimeout(() => router.replace('/(tabs)/explore'), 300);
