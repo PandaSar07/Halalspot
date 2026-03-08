@@ -264,14 +264,14 @@ const styles = StyleSheet.create({
         alignItems: 'center',
     },
     pinBg: {
-        width: 62,
-        height: 62,
+        width: 76,
+        height: 76,
         backgroundColor: '#00C96B',
         // Make it a teardrop pin shape pointing to bottom-right
-        borderTopLeftRadius: 31,
-        borderTopRightRadius: 31,
-        borderBottomLeftRadius: 31,
-        borderBottomRightRadius: 4, // Slight rounding on the sharp tip
+        borderTopLeftRadius: 38,
+        borderTopRightRadius: 38,
+        borderBottomLeftRadius: 38,
+        borderBottomRightRadius: 6, // Slight rounding on the sharp tip
         // Rotate 45deg so the bottom-right tip points straight down
         transform: [{ rotate: '45deg' }],
         alignItems: 'center',
@@ -284,8 +284,8 @@ const styles = StyleSheet.create({
         marginBottom: 8, // Little bit of space equivalent to the old tip
     },
     pinLogo: {
-        width: 52,
-        height: 52,
+        width: 66,
+        height: 66,
         // Counter-rotate the logo so it sits upright
         transform: [{ rotate: '-45deg' }],
     },
