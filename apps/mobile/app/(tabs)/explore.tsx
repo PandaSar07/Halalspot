@@ -1,10 +1,11 @@
-import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import {
-    View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Dimensions, Image, TextInput, Keyboard
+    View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Dimensions, Image
 } from 'react-native';
 import MapView, { Marker, PROVIDER_DEFAULT, MapMarker } from 'react-native-maps';
 import { Ionicons } from '@expo/vector-icons';
 import * as Location from 'expo-location';
+import { useFocusEffect } from 'expo-router';
 import { supabase } from '../../src/lib/supabase';
 import { getNearbyRestaurants } from '@halalspot/supabase';
 import { useTheme } from '../../src/lib/ThemeContext';
@@ -55,7 +56,6 @@ export default function MapScreen() {
     const [loading, setLoading] = useState(true);
     const [selectedRestaurant, setSelectedRestaurant] = useState<RestaurantWithDistance | null>(null);
     const [userCoords, setUserCoords] = useState<{ latitude: number; longitude: number }>(PHILLY);
-    const [searchQuery, setSearchQuery] = useState('');
 
     // Fetch restaurants once
     useEffect(() => {
@@ -70,7 +70,7 @@ export default function MapScreen() {
                 }
                 let data: RestaurantWithDistance[] = [];
                 try {
-                    data = await getNearbyRestaurants(supabase, coords, 80000);
+                    data = await getNearbyRestaurants(supabase, coords, 50000);
                 } catch {
                     // Fallback: fetch all approved restaurants with coordinates extracted from PostGIS
                     const { data: fallback } = await (supabase as any)
@@ -88,18 +88,8 @@ export default function MapScreen() {
         })();
     }, []);
 
-    // Filtered restaurants for the map pins based on search query
-    const filteredRestaurants = useMemo(() => {
-        if (!searchQuery.trim()) return restaurants;
-        const q = searchQuery.toLowerCase();
-        return restaurants.filter(r => 
-            r.name.toLowerCase().includes(q) || 
-            (r as any).cuisine?.toLowerCase().includes(q)
-        );
-    }, [restaurants, searchQuery]);
-
-    // Handle "Show on Map" navigation — fires when context or restaurants load
-    useEffect(() => {
+    // Handle "Show on Map" navigation — fires each time screen comes into focus
+    useFocusEffect(useCallback(() => {
         if (!highlightedRestaurantId || restaurants.length === 0) return;
         const target = restaurants.find(r => r.id === highlightedRestaurantId);
         if (!target) return;
@@ -116,15 +106,21 @@ export default function MapScreen() {
         // Auto-open bottom sheet
         setSelectedRestaurant(target);
         setHighlightedRestaurantId(null);
-    }, [highlightedRestaurantId, restaurants]);
+    }, [highlightedRestaurantId, restaurants]));
 
     const handleMarkerPress = useCallback((r: RestaurantWithDistance) => {
         setSelectedRestaurant(r);
-        Keyboard.dismiss();
     }, []);
 
     return (
         <View style={styles.container}>
+            {loading && (
+                <View style={[styles.loadingOverlay, { backgroundColor: theme.bg }]}>
+                    <ActivityIndicator color={theme.primary} size="large" />
+                    <Text style={[styles.loadingText, { color: theme.textSecondary }]}>Loading Halal Spots…</Text>
+                </View>
+            )}
+
             <MapView
                 ref={mapRef}
                 style={styles.map}
@@ -137,12 +133,8 @@ export default function MapScreen() {
                     longitudeDelta: 0.05,
                 }}
                 customMapStyle={isDark ? DARK_MAP_STYLE : []}
-                onPress={() => {
-                    setSelectedRestaurant(null);
-                    Keyboard.dismiss();
-                }}
             >
-                {filteredRestaurants.map(r => {
+                {restaurants.map(r => {
                     const lat = Number((r as any).latitude);
                     const lng = Number((r as any).longitude);
                     if (!lat || !lng) return null;
@@ -160,34 +152,6 @@ export default function MapScreen() {
                     );
                 })}
             </MapView>
-
-            {/* Search Bar Overlay */}
-            <View style={styles.searchContainer} pointerEvents="box-none">
-                <View style={[styles.searchBar, { backgroundColor: theme.bgCard, borderColor: theme.border }]}>
-                    <Ionicons name="search-outline" size={20} color={theme.textMuted} />
-                    <TextInput
-                        style={[styles.searchInput, { color: theme.textPrimary }]}
-                        placeholder="Search map for restaurants..."
-                        placeholderTextColor={theme.textMuted}
-                        value={searchQuery}
-                        onChangeText={setSearchQuery}
-                        returnKeyType="search"
-                        onSubmitEditing={() => Keyboard.dismiss()}
-                    />
-                    {searchQuery.length > 0 && (
-                        <TouchableOpacity onPress={() => setSearchQuery('')} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
-                            <Ionicons name="close-circle" size={18} color={theme.textMuted} />
-                        </TouchableOpacity>
-                    )}
-                </View>
-            </View>
-
-            {loading && (
-                <View style={[styles.loadingOverlay, { backgroundColor: theme.bg }]} pointerEvents="none">
-                    <ActivityIndicator color={theme.primary} size="large" />
-                    <Text style={[styles.loadingText, { color: theme.textSecondary }]}>Loading Halal Spots…</Text>
-                </View>
-            )}
 
             {/* Top count badge */}
             {!loading && (
@@ -221,7 +185,7 @@ export default function MapScreen() {
     );
 }
 
-/** Custom map pin in halal green */
+/** Custom map pin */
 function MapPin({ selected }: { selected: boolean }) {
     return (
         <View style={styles.pinWrapper}>
@@ -240,35 +204,6 @@ function MapPin({ selected }: { selected: boolean }) {
 const styles = StyleSheet.create({
     container: { flex: 1 },
     map: { flex: 1 },
-    searchContainer: {
-        position: 'absolute',
-        top: 60,
-        left: 0,
-        right: 0,
-        paddingHorizontal: 20,
-        zIndex: 20,
-        elevation: 10,
-    },
-    searchBar: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        borderWidth: 1,
-        borderRadius: 100,
-        paddingHorizontal: 16,
-        paddingVertical: 12,
-        gap: 10,
-        shadowColor: '#000',
-        shadowOpacity: 0.1,
-        shadowRadius: 8,
-        shadowOffset: { width: 0, height: 4 },
-        elevation: 5,
-    },
-    searchInput: {
-        flex: 1,
-        fontSize: 15,
-        fontFamily: 'Outfit',
-        height: 20,
-    },
     loadingOverlay: {
         ...StyleSheet.absoluteFillObject,
         zIndex: 10,
@@ -279,7 +214,7 @@ const styles = StyleSheet.create({
     loadingText: { fontSize: 14, fontFamily: 'Outfit' },
     badge: {
         position: 'absolute',
-        top: 125,
+        top: 60,
         alignSelf: 'center',
         flexDirection: 'row',
         alignItems: 'center',
@@ -318,51 +253,51 @@ const styles = StyleSheet.create({
         padding: 5,
     },
     pin: {
+        width: 32,
+        height: 32,
+        borderTopLeftRadius: 16,
+        borderTopRightRadius: 16,
+        borderBottomLeftRadius: 16,
+        borderBottomRightRadius: 5,
+        backgroundColor: '#00C96B',
+        alignItems: 'center',
+        justifyContent: 'center',
+        borderWidth: 2,
+        borderColor: '#fff',
+        shadowColor: '#00C96B',
+        shadowOpacity: 0.5,
+        shadowRadius: 5,
+        shadowOffset: { width: 0, height: 2 },
+        elevation: 5,
+        transform: [{ rotate: '45deg' }],
+        overflow: 'hidden',
+    },
+    pinSelected: {
         width: 40,
         height: 40,
         borderTopLeftRadius: 20,
         borderTopRightRadius: 20,
         borderBottomLeftRadius: 20,
         borderBottomRightRadius: 6,
-        backgroundColor: '#00C96B',
-        alignItems: 'center',
-        justifyContent: 'center',
-        borderWidth: 2.5,
-        borderColor: '#fff',
-        shadowColor: '#00C96B',
-        shadowOpacity: 0.5,
-        shadowRadius: 6,
-        shadowOffset: { width: 0, height: 2 },
-        elevation: 6,
-        transform: [{ rotate: '45deg' }],
-        overflow: 'hidden',
-    },
-    pinSelected: {
-        width: 50,
-        height: 50,
-        borderTopLeftRadius: 25,
-        borderTopRightRadius: 25,
-        borderBottomLeftRadius: 25,
-        borderBottomRightRadius: 8,
         borderColor: '#00A855',
         shadowOpacity: 0.7,
-        shadowRadius: 10,
+        shadowRadius: 8,
     },
     pinImage: {
-        width: 38,
-        height: 38,
+        width: 28,
+        height: 28,
         transform: [{ rotate: '-45deg' }, { scale: 1.15 }],
     },
     pinImageSelected: {
-        width: 48,
-        height: 48,
+        width: 36,
+        height: 36,
         transform: [{ rotate: '-45deg' }, { scale: 1.25 }],
     },
     pinPulse: {
         position: 'absolute',
-        width: 64,
-        height: 64,
-        borderRadius: 32,
+        width: 56,
+        height: 56,
+        borderRadius: 28,
         borderWidth: 2,
         borderColor: 'rgba(0, 201, 107, 0.4)',
     },

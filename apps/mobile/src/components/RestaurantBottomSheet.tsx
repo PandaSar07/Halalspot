@@ -1,16 +1,16 @@
 import React, { useEffect, useRef, useState } from 'react';
 import {
     View, Text, StyleSheet, Image, TouchableOpacity,
-    ScrollView, Dimensions, Animated, ActivityIndicator, Pressable,
+    ScrollView, Dimensions, Animated, Easing, ActivityIndicator, Pressable,
     Modal, PanResponder, TouchableWithoutFeedback,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import { useTheme } from '../lib/ThemeContext';
+import { useMapContext } from '../lib/MapContext';
 import { supabase } from '../lib/supabase';
 import { getMenuItems, getMenuCategories, isRestaurantFavorited, toggleFavorite } from '@halalspot/supabase';
-import { useMapContext } from '../lib/MapContext';
 import type { RestaurantWithDistance } from '@halalspot/shared-types';
 
 const { width, height } = Dimensions.get('window');
@@ -70,21 +70,26 @@ export default function RestaurantBottomSheet({ restaurant, onClose, snapHeight 
         translateY.setValue(SHEET_HEIGHT);
         dragY.setValue(0);
         Animated.parallel([
-            Animated.spring(translateY, { toValue: 0, useNativeDriver: true, damping: 20, mass: 0.8, stiffness: 200 }),
-            Animated.timing(overlayOpacity, { toValue: 1, duration: 250, useNativeDriver: true }),
+            Animated.timing(translateY, {
+                toValue: 0, duration: 280, useNativeDriver: true,
+                easing: Easing.out(Easing.poly(4)),
+            }),
+            Animated.timing(overlayOpacity, { toValue: 1, duration: 200, useNativeDriver: true }),
         ]).start();
     }, [restaurant?.id]);
 
-    const dismiss = () => {
+    const dismiss = (afterClose?: () => void) => {
         Animated.parallel([
-            Animated.spring(translateY, { toValue: SHEET_HEIGHT, useNativeDriver: true, damping: 20 }),
-            Animated.timing(overlayOpacity, { toValue: 0, duration: 200, useNativeDriver: true }),
-        ]).start(() => onClose());
+            Animated.timing(translateY, {
+                toValue: SHEET_HEIGHT, duration: 220, useNativeDriver: true,
+                easing: Easing.in(Easing.poly(3)),
+            }),
+            Animated.timing(overlayOpacity, { toValue: 0, duration: 180, useNativeDriver: true }),
+        ]).start(() => { onClose(); afterClose?.(); });
     };
 
     const navigateToDetail = () => {
-        dismiss();
-        setTimeout(() => router.push(`/restaurant/${restaurant!.id}`), 280);
+        dismiss(() => router.push(`/restaurant/${restaurant!.id}`));
     };
 
     // Keep live refs so PanResponder (created once) always calls fresh versions
@@ -180,9 +185,9 @@ export default function RestaurantBottomSheet({ restaurant, onClose, snapHeight 
     const displayedCategories = categories.slice(0, 4);
 
     return (
-        <Modal transparent visible animationType="none" onRequestClose={dismiss}>
+        <Modal transparent visible animationType="none" onRequestClose={() => dismiss()}>
             {/* Overlay */}
-            <TouchableWithoutFeedback onPress={dismiss}>
+            <TouchableWithoutFeedback onPress={() => dismiss()}>
                 <Animated.View style={[styles.overlay, { opacity: overlayOpacity }]} />
             </TouchableWithoutFeedback>
 
@@ -218,10 +223,7 @@ export default function RestaurantBottomSheet({ restaurant, onClose, snapHeight 
                             {/* Expand button */}
                             <TouchableOpacity
                                 style={styles.circleBtn}
-                                onPress={() => {
-                                    dismiss();
-                                    setTimeout(() => router.push(`/restaurant/${restaurant.id}`), 300);
-                                }}
+                                onPress={() => dismiss(() => router.push(`/restaurant/${restaurant.id}`))}
                             >
                                 <Ionicons name="expand-outline" size={18} color="#111" />
                             </TouchableOpacity>
@@ -241,13 +243,9 @@ export default function RestaurantBottomSheet({ restaurant, onClose, snapHeight 
                                 <TouchableOpacity 
                                     style={[styles.pill, { backgroundColor: theme.bgElevated, borderColor: theme.border }]}
                                     onPress={() => {
-                                        if (setHighlightedRestaurantId) {
-                                            setHighlightedRestaurantId(restaurant.id);
-                                        }
-                                        dismiss();
-                                        router.push('/(tabs)/explore');
+                                        setHighlightedRestaurantId(restaurant.id);
+                                        dismiss(() => router.replace('/(tabs)/explore'));
                                     }}
-                                    accessibilityLabel="Show on Map"
                                 >
                                     <Ionicons name="location-outline" size={12} color={theme.textSecondary} />
                                     <Text style={[styles.pillText, { color: theme.textSecondary }]}>

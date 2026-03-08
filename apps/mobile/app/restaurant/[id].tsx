@@ -1,17 +1,21 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import {
     View, Text, StyleSheet, Image, TouchableOpacity,
     ScrollView, Dimensions, ActivityIndicator, Animated as RNAnimated,
+    Modal, TextInput, KeyboardAvoidingView, Platform, Alert,
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { supabase } from '../../src/lib/supabase';
-import { getRestaurantById, getMenuItems, getMenuCategories, getRestaurantReviews, isRestaurantFavorited, toggleFavorite } from '@halalspot/supabase';
+import {
+    getRestaurantById, getMenuItems, getMenuCategories,
+    getRestaurantReviews, isRestaurantFavorited, toggleFavorite,
+    submitReview, getUserReview,
+} from '@halalspot/supabase';
 import { useTheme } from '../../src/lib/ThemeContext';
 import { useMapContext } from '../../src/lib/MapContext';
-import { Radius, Shadow } from '../../src/lib/theme';
 
 const { width } = Dimensions.get('window');
 
@@ -27,6 +31,14 @@ type MenuItem = {
     image_url: string | null; category: string; is_deal: boolean; deal_text: string | null;
 };
 
+type Review = {
+    id: string;
+    rating: number;
+    comment: string | null;
+    created_at: string;
+    user: { id: string; full_name: string | null; avatar_url: string | null } | null;
+};
+
 export default function RestaurantDetailPage() {
     const { id } = useLocalSearchParams<{ id: string }>();
     const { theme } = useTheme();
@@ -35,13 +47,15 @@ export default function RestaurantDetailPage() {
     const { setHighlightedRestaurantId } = useMapContext();
     const [restaurant, setRestaurant] = useState<any>(null);
     const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
-    const [categories, setCategories] = useState<string[]>(['Most Ordered', 'Deals']);
+    const [categories, setCategories] = useState<string[]>(['Most Ordered', 'Deals', 'Reviews']);
     const [activeTab, setActiveTab] = useState('Most Ordered');
-    const [reviews, setReviews] = useState<any[]>([]);
+    const [reviews, setReviews] = useState<Review[]>([]);
     const [loading, setLoading] = useState(true);
     const [deliveryMode, setDeliveryMode] = useState<'delivery' | 'pickup'>('delivery');
     const [isFavorite, setIsFavorite] = useState(false);
     const [userId, setUserId] = useState<string | null>(null);
+    const [userExistingReview, setUserExistingReview] = useState<any>(null);
+    const [reviewModalVisible, setReviewModalVisible] = useState(false);
     const tabIndicator = useRef(new RNAnimated.Value(0)).current;
 
     useEffect(() => {
@@ -54,18 +68,22 @@ export default function RestaurantDetailPage() {
             const { data: { user } } = await supabase.auth.getUser();
             if (user) setUserId(user.id);
 
-            const [rest, items, cats, revs, favorited] = await Promise.all([
+            const [rest, items, cats, revs, favorited, existingReview] = await Promise.all([
                 getRestaurantById(supabase, id!),
                 getMenuItems(supabase, id!),
                 getMenuCategories(supabase, id!),
                 getRestaurantReviews(supabase, id!),
                 user ? isRestaurantFavorited(supabase, user.id, id!) : false,
+                user ? getUserReview(supabase, user.id, id!) : null,
             ]);
             setRestaurant(rest);
             setMenuItems(items as MenuItem[]);
-            setCategories(cats.length > 0 ? cats : ['Most Ordered', 'Deals']);
-            setReviews(revs);
+            const tabList = cats.length > 0 ? cats : ['Most Ordered', 'Deals'];
+            if (!tabList.includes('Reviews')) tabList.push('Reviews');
+            setCategories(tabList);
+            setReviews(revs as Review[]);
             setIsFavorite(favorited);
+            setUserExistingReview(existingReview);
         } catch (e) {
             console.error('Detail page error:', e);
         } finally {
@@ -76,12 +94,11 @@ export default function RestaurantDetailPage() {
     const handleFavorite = async () => {
         if (!userId) return;
         try {
-            // Optimistic update
             setIsFavorite(!isFavorite);
             const newValue = await toggleFavorite(supabase, userId, id!);
             setIsFavorite(newValue);
         } catch (e) {
-            setIsFavorite(!isFavorite); // Revert on failure
+            setIsFavorite(!isFavorite);
             console.error('Failed to toggle favorite:', e);
         }
     };
@@ -94,11 +111,37 @@ export default function RestaurantDetailPage() {
         }).start();
     };
 
+    const handleReviewSubmitted = async (newReview: { rating: number; comment: string }) => {
+        if (!userId) return;
+        try {
+            await submitReview(supabase, {
+                restaurantId: id!,
+                userId,
+                rating: newReview.rating,
+                comment: newReview.comment,
+            });
+            // Refetch reviews and rating
+            const [revs, rest, existingReview] = await Promise.all([
+                getRestaurantReviews(supabase, id!),
+                getRestaurantById(supabase, id!),
+                getUserReview(supabase, userId, id!),
+            ]);
+            setReviews(revs as Review[]);
+            setRestaurant(rest);
+            setUserExistingReview(existingReview);
+            setReviewModalVisible(false);
+        } catch (e: any) {
+            Alert.alert('Error', e.message || 'Failed to submit review. Please try again.');
+        }
+    };
+
     const filteredItems = activeTab === 'Deals'
         ? menuItems.filter(i => i.is_deal)
         : activeTab === 'Most Ordered'
             ? menuItems.slice(0, 10)
-            : menuItems.filter(i => i.category === activeTab);
+            : activeTab === 'Reviews'
+                ? []
+                : menuItems.filter(i => i.category === activeTab);
 
     if (loading) {
         return (
@@ -128,7 +171,6 @@ export default function RestaurantDetailPage() {
                         style={styles.hero}
                     />
                     <LinearGradient colors={['rgba(0,0,0,0.45)', 'transparent', 'transparent']} style={StyleSheet.absoluteFill} />
-                    {/* Floating action buttons */}
                     <View style={[styles.heroActions, { top: insets.top + 10 }]}>
                         <TouchableOpacity style={styles.heroBtn} onPress={() => router.back()}>
                             <Ionicons name="arrow-back" size={20} color="#111" />
@@ -143,9 +185,7 @@ export default function RestaurantDetailPage() {
                             <TouchableOpacity
                                 style={styles.heroBtn}
                                 onPress={() => {
-                                    if (setHighlightedRestaurantId) {
-                                        setHighlightedRestaurantId(id!);
-                                    }
+                                    setHighlightedRestaurantId(id!);
                                     router.push('/(tabs)/explore');
                                 }}
                                 accessibilityLabel="Show on Map"
@@ -167,11 +207,18 @@ export default function RestaurantDetailPage() {
                             <Text style={[styles.certPillText, { color: certColor }]}>{certLabel}</Text>
                         </View>
                         {restaurant.avg_rating > 0 && (
-                            <View style={styles.ratingChip}>
+                            <TouchableOpacity
+                                style={styles.ratingChip}
+                                onPress={() => {
+                                    const idx = categories.indexOf('Reviews');
+                                    if (idx >= 0) handleTabChange('Reviews', idx);
+                                }}
+                            >
                                 <Ionicons name="star" size={13} color="#F5C842" />
                                 <Text style={[styles.ratingText, { color: theme.textPrimary }]}>{restaurant.avg_rating.toFixed(1)}</Text>
-                                <Text style={[styles.ratingCount, { color: theme.textMuted }]}>({reviews.length})</Text>
-                            </View>
+                                <Text style={[styles.ratingCount, { color: theme.textMuted }]}>({reviews.length} reviews)</Text>
+                                <Ionicons name="chevron-forward" size={13} color={theme.textMuted} />
+                            </TouchableOpacity>
                         )}
                     </View>
                 </View>
@@ -179,15 +226,29 @@ export default function RestaurantDetailPage() {
                 {/* ── Info Chips Row ── */}
                 <View style={[styles.infoRow, { backgroundColor: theme.bgCard, borderTopColor: theme.border, borderBottomColor: theme.border }]}>
                     {[
-                        { icon: 'star-outline', label: `${restaurant.avg_rating?.toFixed(1) || '–'} Rating` },
-                        { icon: 'camera-outline', label: 'Photos' },
-                        { icon: 'information-circle-outline', label: 'Store Info' },
+                        { icon: 'star-outline', label: `${restaurant.avg_rating?.toFixed(1) || '–'} Rating`, onPress: undefined as (() => void) | undefined },
+                        { icon: 'camera-outline', label: 'Photos', onPress: undefined as (() => void) | undefined },
+                        { icon: 'information-circle-outline', label: 'Store Info', onPress: undefined as (() => void) | undefined },
                     ].map((chip, i) => (
-                        <TouchableOpacity key={i} style={styles.infoChip}>
+                        <TouchableOpacity key={i} style={styles.infoChip} onPress={chip.onPress}>
                             <Ionicons name={chip.icon as any} size={18} color="#00C96B" />
                             <Text style={[styles.infoChipText, { color: theme.textPrimary }]}>{chip.label}</Text>
                         </TouchableOpacity>
                     ))}
+                    <TouchableOpacity
+                        style={styles.infoChip}
+                        onPress={() => {
+                            setHighlightedRestaurantId(id!);
+                            router.push('/(tabs)/explore');
+                        }}
+                    >
+                        <Ionicons name="location-outline" size={18} color="#00C96B" />
+                        <Text style={[styles.infoChipText, { color: theme.textPrimary }]}>
+                            {restaurant.distance_meters
+                                ? `${(restaurant.distance_meters * 0.000621371).toFixed(1)} mi`
+                                : 'Map'}
+                        </Text>
+                    </TouchableOpacity>
                 </View>
 
                 {/* ── Delivery Toggle ── */}
@@ -220,26 +281,285 @@ export default function RestaurantDetailPage() {
                     <RNAnimated.View style={[styles.tabIndicator, { width: width / Math.min(categories.length, 4), transform: [{ translateX: tabIndicator }] }]} />
                 </View>
 
-                {/* ── Menu Items ── */}
-                <View style={styles.menuList}>
-                    {filteredItems.length === 0 ? (
-                        <View style={styles.menuEmpty}>
-                            <Ionicons name="restaurant-outline" size={40} color={theme.textMuted} />
-                            <Text style={[styles.menuEmptyText, { color: theme.textMuted }]}>
-                                {activeTab === 'Deals' ? 'No active deals right now' : 'Menu items coming soon'}
-                            </Text>
-                        </View>
-                    ) : (
-                        filteredItems.map(item => (
-                            <FullMenuItemCard key={item.id} item={item} theme={theme} />
-                        ))
-                    )}
-                    <View style={{ height: 40 + insets.bottom }} />
-                </View>
+                {/* ── Content: Menu or Reviews ── */}
+                {activeTab === 'Reviews' ? (
+                    <ReviewsSection
+                        reviews={reviews}
+                        theme={theme}
+                        userId={userId}
+                        userExistingReview={userExistingReview}
+                        onWriteReview={() => setReviewModalVisible(true)}
+                        avgRating={restaurant.avg_rating}
+                        insets={insets}
+                    />
+                ) : (
+                    <View style={styles.menuList}>
+                        {filteredItems.length === 0 ? (
+                            <View style={styles.menuEmpty}>
+                                <Ionicons name="restaurant-outline" size={40} color={theme.textMuted} />
+                                <Text style={[styles.menuEmptyText, { color: theme.textMuted }]}>
+                                    {activeTab === 'Deals' ? 'No active deals right now' : 'Menu items coming soon'}
+                                </Text>
+                            </View>
+                        ) : (
+                            filteredItems.map(item => (
+                                <FullMenuItemCard key={item.id} item={item} theme={theme} />
+                            ))
+                        )}
+                        <View style={{ height: 40 + insets.bottom }} />
+                    </View>
+                )}
             </ScrollView>
+
+            {/* ── Write Review Modal ── */}
+            <WriteReviewModal
+                visible={reviewModalVisible}
+                onClose={() => setReviewModalVisible(false)}
+                onSubmit={handleReviewSubmitted}
+                existingReview={userExistingReview}
+                theme={theme}
+            />
         </View>
     );
 }
+
+// ─── Reviews Section ──────────────────────────────────────────────────────────
+
+function ReviewsSection({ reviews, theme, userId, userExistingReview, onWriteReview, avgRating, insets }: {
+    reviews: Review[];
+    theme: any;
+    userId: string | null;
+    userExistingReview: any;
+    onWriteReview: () => void;
+    avgRating: number;
+    insets: any;
+}) {
+    const starCounts = [5, 4, 3, 2, 1].map(n => ({
+        star: n,
+        count: reviews.filter(r => r.rating === n).length,
+    }));
+    const total = reviews.length;
+
+    return (
+        <View style={{ paddingBottom: 40 + insets.bottom }}>
+            {/* ── Summary Card ── */}
+            {total > 0 && (
+                <View style={[styles.ratingCard, { backgroundColor: theme.bgCard, borderBottomColor: theme.border }]}>
+                    <View style={styles.ratingBig}>
+                        <Text style={[styles.ratingBigNum, { color: theme.textPrimary }]}>
+                            {avgRating > 0 ? avgRating.toFixed(1) : '–'}
+                        </Text>
+                        <StarRow rating={avgRating} size={22} />
+                        <Text style={[styles.ratingBigSub, { color: theme.textSecondary }]}>
+                            {total} review{total !== 1 ? 's' : ''}
+                        </Text>
+                    </View>
+                    <View style={styles.ratingBars}>
+                        {starCounts.map(({ star, count }) => (
+                            <View key={star} style={styles.ratingBarRow}>
+                                <Text style={[styles.ratingBarLabel, { color: theme.textSecondary }]}>{star}</Text>
+                                <Ionicons name="star" size={11} color="#F5C842" />
+                                <View style={[styles.ratingBarBg, { backgroundColor: theme.border }]}>
+                                    <View
+                                        style={[
+                                            styles.ratingBarFill,
+                                            { width: total > 0 ? `${(count / total) * 100}%` : '0%', backgroundColor: '#00C96B' },
+                                        ]}
+                                    />
+                                </View>
+                                <Text style={[styles.ratingBarCount, { color: theme.textMuted }]}>{count}</Text>
+                            </View>
+                        ))}
+                    </View>
+                </View>
+            )}
+
+            {/* ── Write a Review Button ── */}
+            {userId ? (
+                <TouchableOpacity
+                    style={[styles.writeReviewBtn, { backgroundColor: userExistingReview ? theme.bgElevated : '#00C96B' }]}
+                    onPress={onWriteReview}
+                    activeOpacity={0.85}
+                >
+                    <Ionicons
+                        name={userExistingReview ? 'create-outline' : 'pencil-outline'}
+                        size={18}
+                        color={userExistingReview ? theme.textPrimary : '#fff'}
+                    />
+                    <Text style={[styles.writeReviewBtnText, { color: userExistingReview ? theme.textPrimary : '#fff' }]}>
+                        {userExistingReview ? 'Edit Your Review' : 'Write a Review'}
+                    </Text>
+                </TouchableOpacity>
+            ) : (
+                <View style={[styles.writeReviewBtn, { backgroundColor: theme.bgElevated }]}>
+                    <Ionicons name="lock-closed-outline" size={16} color={theme.textMuted} />
+                    <Text style={[styles.writeReviewBtnText, { color: theme.textMuted }]}>Sign in to write a review</Text>
+                </View>
+            )}
+
+            {/* ── Review List ── */}
+            {reviews.length === 0 ? (
+                <View style={styles.noReviews}>
+                    <Ionicons name="chatbubble-outline" size={42} color={theme.textMuted} />
+                    <Text style={[styles.noReviewsTitle, { color: theme.textPrimary }]}>No reviews yet</Text>
+                    <Text style={[styles.noReviewsSub, { color: theme.textSecondary }]}>Be the first to share your experience!</Text>
+                </View>
+            ) : (
+                reviews.map(review => (
+                    <ReviewCard key={review.id} review={review} theme={theme} />
+                ))
+            )}
+        </View>
+    );
+}
+
+function ReviewCard({ review, theme }: { review: Review; theme: any }) {
+    const name = review.user?.full_name || 'Anonymous';
+    const initials = name.split(' ').map((n: string) => n[0]).join('').toUpperCase().slice(0, 2);
+    const date = new Date(review.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+
+    return (
+        <View style={[styles.reviewCard, { backgroundColor: theme.bgCard, borderBottomColor: theme.border }]}>
+            <View style={styles.reviewHeader}>
+                <View style={styles.reviewAvatar}>
+                    {review.user?.avatar_url ? (
+                        <Image source={{ uri: review.user.avatar_url }} style={styles.reviewAvatarImg} />
+                    ) : (
+                        <View style={[styles.reviewAvatarFallback, { backgroundColor: '#00C96B22' }]}>
+                            <Text style={[styles.reviewAvatarInitials, { color: '#00C96B' }]}>{initials}</Text>
+                        </View>
+                    )}
+                </View>
+                <View style={{ flex: 1 }}>
+                    <Text style={[styles.reviewName, { color: theme.textPrimary }]}>{name}</Text>
+                    <View style={styles.reviewMeta}>
+                        <StarRow rating={review.rating} size={13} />
+                        <Text style={[styles.reviewDate, { color: theme.textMuted }]}> · {date}</Text>
+                    </View>
+                </View>
+            </View>
+            {review.comment ? (
+                <Text style={[styles.reviewComment, { color: theme.textSecondary }]}>{review.comment}</Text>
+            ) : null}
+        </View>
+    );
+}
+
+function StarRow({ rating, size = 16 }: { rating: number; size?: number }) {
+    return (
+        <View style={{ flexDirection: 'row', gap: 2 }}>
+            {[1, 2, 3, 4, 5].map(n => (
+                <Ionicons
+                    key={n}
+                    name={n <= Math.round(rating) ? 'star' : 'star-outline'}
+                    size={size}
+                    color="#F5C842"
+                />
+            ))}
+        </View>
+    );
+}
+
+// ─── Write Review Modal ───────────────────────────────────────────────────────
+
+function WriteReviewModal({ visible, onClose, onSubmit, existingReview, theme }: {
+    visible: boolean;
+    onClose: () => void;
+    onSubmit: (r: { rating: number; comment: string }) => void;
+    existingReview: any;
+    theme: any;
+}) {
+    const [rating, setRating] = useState(existingReview?.rating ?? 0);
+    const [comment, setComment] = useState(existingReview?.comment ?? '');
+    const [submitting, setSubmitting] = useState(false);
+
+    useEffect(() => {
+        if (visible) {
+            setRating(existingReview?.rating ?? 0);
+            setComment(existingReview?.comment ?? '');
+        }
+    }, [visible, existingReview]);
+
+    const handleSubmit = async () => {
+        if (rating === 0) {
+            Alert.alert('Rating Required', 'Please select a star rating before submitting.');
+            return;
+        }
+        setSubmitting(true);
+        try {
+            await onSubmit({ rating, comment: comment.trim() });
+        } finally {
+            setSubmitting(false);
+        }
+    };
+
+    return (
+        <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
+            <KeyboardAvoidingView
+                behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+                style={styles.modalOverlay}
+            >
+                <TouchableOpacity style={StyleSheet.absoluteFill} activeOpacity={1} onPress={onClose} />
+                <View style={[styles.modalSheet, { backgroundColor: theme.bgCard }]}>
+                    {/* Handle */}
+                    <View style={[styles.modalHandle, { backgroundColor: theme.border }]} />
+
+                    <Text style={[styles.modalTitle, { color: theme.textPrimary }]}>
+                        {existingReview ? 'Edit Your Review' : 'Write a Review'}
+                    </Text>
+                    <Text style={[styles.modalSub, { color: theme.textSecondary }]}>
+                        How was your experience?
+                    </Text>
+
+                    {/* Star Selector */}
+                    <View style={styles.starSelector}>
+                        {[1, 2, 3, 4, 5].map(n => (
+                            <TouchableOpacity key={n} onPress={() => setRating(n)} activeOpacity={0.7}>
+                                <Ionicons
+                                    name={n <= rating ? 'star' : 'star-outline'}
+                                    size={40}
+                                    color={n <= rating ? '#F5C842' : theme.border}
+                                />
+                            </TouchableOpacity>
+                        ))}
+                    </View>
+                    <Text style={[styles.ratingLabel, { color: theme.textSecondary }]}>
+                        {rating === 0 ? 'Tap to rate' : ['', 'Poor', 'Fair', 'Good', 'Very Good', 'Excellent'][rating]}
+                    </Text>
+
+                    {/* Comment Input */}
+                    <TextInput
+                        style={[styles.commentInput, { backgroundColor: theme.bgElevated, color: theme.textPrimary, borderColor: theme.border }]}
+                        placeholder="Share your experience (optional)..."
+                        placeholderTextColor={theme.textMuted}
+                        value={comment}
+                        onChangeText={setComment}
+                        multiline
+                        numberOfLines={4}
+                        maxLength={500}
+                        textAlignVertical="top"
+                    />
+                    <Text style={[styles.charCount, { color: theme.textMuted }]}>{comment.length}/500</Text>
+
+                    {/* Submit Button */}
+                    <TouchableOpacity
+                        style={[styles.submitBtn, { backgroundColor: rating > 0 ? '#00C96B' : theme.border }]}
+                        onPress={handleSubmit}
+                        disabled={submitting || rating === 0}
+                        activeOpacity={0.85}
+                    >
+                        {submitting
+                            ? <ActivityIndicator color="#fff" />
+                            : <Text style={styles.submitBtnText}>{existingReview ? 'Update Review' : 'Submit Review'}</Text>
+                        }
+                    </TouchableOpacity>
+                </View>
+            </KeyboardAvoidingView>
+        </Modal>
+    );
+}
+
+// ─── Menu Card ────────────────────────────────────────────────────────────────
 
 function FullMenuItemCard({ item, theme }: { item: MenuItem; theme: any }) {
     return (
@@ -273,14 +593,20 @@ function FullMenuItemCard({ item, theme }: { item: MenuItem; theme: any }) {
     );
 }
 
+// ─── Styles ───────────────────────────────────────────────────────────────────
+
 const styles = StyleSheet.create({
     container: { flex: 1 },
     loading: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+
+    // Hero
     heroWrap: { position: 'relative', height: 280 },
     hero: { width: '100%', height: '100%' },
     heroActions: { position: 'absolute', left: 16, right: 16, flexDirection: 'row', justifyContent: 'space-between' },
     heroActionsRight: { flexDirection: 'row', gap: 8 },
     heroBtn: { width: 38, height: 38, borderRadius: 19, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center', shadowColor: '#000', shadowOpacity: 0.15, shadowRadius: 6, shadowOffset: { width: 0, height: 2 }, elevation: 3 },
+
+    // Header info
     headerInfo: { padding: 20, paddingBottom: 14, gap: 8 },
     restaurantName: { fontSize: 26, fontFamily: 'DMSerifDisplay', letterSpacing: -0.5 },
     metaRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
@@ -289,20 +615,28 @@ const styles = StyleSheet.create({
     ratingChip: { flexDirection: 'row', alignItems: 'center', gap: 4 },
     ratingText: { fontSize: 14, fontFamily: 'Outfit-SemiBold', fontWeight: '700' },
     ratingCount: { fontSize: 12, fontFamily: 'Outfit' },
+
+    // Info chips
     infoRow: { flexDirection: 'row', borderTopWidth: 1, borderBottomWidth: 1, paddingVertical: 4 },
     infoChip: { flex: 1, alignItems: 'center', paddingVertical: 12, gap: 4 },
     infoChipText: { fontSize: 11, fontFamily: 'Outfit-SemiBold' },
+
+    // Delivery toggle
     deliveryToggle: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1, gap: 8 },
     deliveryBtn: { paddingHorizontal: 16, paddingVertical: 8, borderRadius: 100 },
     deliveryBtnActive: { backgroundColor: '#00C96B20' },
     deliveryBtnText: { fontSize: 14, fontFamily: 'Outfit-SemiBold', color: '#9CA3AF' },
     deliveryInfo: { flex: 1, alignItems: 'flex-end', borderLeftWidth: 1, paddingLeft: 16 },
     deliveryInfoText: { fontSize: 13, fontFamily: 'Outfit' },
+
+    // Tab bar
     tabBar: { flexDirection: 'row', borderBottomWidth: 2, position: 'relative' },
     tab: { flex: 1, paddingVertical: 14, alignItems: 'center' },
     tabText: { fontSize: 13, fontFamily: 'Outfit-SemiBold' },
     tabTextActive: { fontFamily: 'Outfit-Bold' },
     tabIndicator: { position: 'absolute', bottom: -2, height: 3, backgroundColor: '#00C96B', borderRadius: 2 },
+
+    // Menu
     menuList: { paddingTop: 8 },
     menuEmpty: { alignItems: 'center', paddingVertical: 60, gap: 10 },
     menuEmptyText: { fontSize: 14, fontFamily: 'Outfit' },
@@ -317,4 +651,46 @@ const styles = StyleSheet.create({
     addBtn: { width: 32, height: 32, borderRadius: 16, backgroundColor: '#00C96B', alignItems: 'center', justifyContent: 'center' },
     menuThumb: { width: 90, height: 90, borderRadius: 12 },
     menuThumbEmpty: { width: 90, height: 90, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
+
+    // Reviews section
+    ratingCard: { flexDirection: 'row', alignItems: 'center', padding: 20, gap: 20, borderBottomWidth: 1 },
+    ratingBig: { alignItems: 'center', gap: 6, minWidth: 80 },
+    ratingBigNum: { fontSize: 48, fontFamily: 'DMSerifDisplay', letterSpacing: -2, lineHeight: 52 },
+    ratingBigSub: { fontSize: 12, fontFamily: 'Outfit' },
+    ratingBars: { flex: 1, gap: 5 },
+    ratingBarRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+    ratingBarLabel: { fontSize: 12, fontFamily: 'Outfit-SemiBold', width: 10, textAlign: 'right' },
+    ratingBarBg: { flex: 1, height: 6, borderRadius: 3, overflow: 'hidden' },
+    ratingBarFill: { height: '100%', borderRadius: 3 },
+    ratingBarCount: { fontSize: 11, fontFamily: 'Outfit', width: 18, textAlign: 'right' },
+    writeReviewBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, margin: 16, borderRadius: 14, paddingVertical: 14 },
+    writeReviewBtnText: { fontSize: 15, fontFamily: 'Outfit-SemiBold', fontWeight: '700' },
+    noReviews: { alignItems: 'center', paddingVertical: 60, gap: 10, paddingHorizontal: 30 },
+    noReviewsTitle: { fontSize: 18, fontFamily: 'Outfit-SemiBold', fontWeight: '700' },
+    noReviewsSub: { fontSize: 14, fontFamily: 'Outfit', textAlign: 'center' },
+
+    // Review card
+    reviewCard: { padding: 18, borderBottomWidth: 1 },
+    reviewHeader: { flexDirection: 'row', gap: 12, marginBottom: 10 },
+    reviewAvatar: { width: 42, height: 42 },
+    reviewAvatarImg: { width: 42, height: 42, borderRadius: 21 },
+    reviewAvatarFallback: { width: 42, height: 42, borderRadius: 21, alignItems: 'center', justifyContent: 'center' },
+    reviewAvatarInitials: { fontSize: 16, fontFamily: 'Outfit-SemiBold', fontWeight: '700' },
+    reviewName: { fontSize: 14, fontFamily: 'Outfit-SemiBold', fontWeight: '700', marginBottom: 3 },
+    reviewMeta: { flexDirection: 'row', alignItems: 'center' },
+    reviewDate: { fontSize: 12, fontFamily: 'Outfit' },
+    reviewComment: { fontSize: 14, fontFamily: 'Outfit', lineHeight: 20 },
+
+    // Write review modal
+    modalOverlay: { flex: 1, justifyContent: 'flex-end' },
+    modalSheet: { borderTopLeftRadius: 28, borderTopRightRadius: 28, padding: 24, paddingBottom: 40, shadowColor: '#000', shadowOpacity: 0.2, shadowRadius: 20, elevation: 12 },
+    modalHandle: { width: 40, height: 4, borderRadius: 2, alignSelf: 'center', marginBottom: 20 },
+    modalTitle: { fontSize: 22, fontFamily: 'DMSerifDisplay', letterSpacing: -0.5, marginBottom: 4 },
+    modalSub: { fontSize: 14, fontFamily: 'Outfit', marginBottom: 20 },
+    starSelector: { flexDirection: 'row', gap: 10, justifyContent: 'center', marginBottom: 8 },
+    ratingLabel: { textAlign: 'center', fontSize: 14, fontFamily: 'Outfit-SemiBold', marginBottom: 20 },
+    commentInput: { borderWidth: 1, borderRadius: 14, padding: 14, fontSize: 14, fontFamily: 'Outfit', minHeight: 110, marginBottom: 6 },
+    charCount: { textAlign: 'right', fontSize: 11, fontFamily: 'Outfit', marginBottom: 20 },
+    submitBtn: { borderRadius: 14, paddingVertical: 16, alignItems: 'center' },
+    submitBtnText: { color: '#fff', fontSize: 16, fontFamily: 'Outfit-SemiBold', fontWeight: '700' },
 });

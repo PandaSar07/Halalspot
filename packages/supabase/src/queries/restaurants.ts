@@ -59,6 +59,42 @@ export async function getRestaurantReviews(client: SupabaseClient, restaurantId:
 }
 
 /**
+ * Get a single user's review for a restaurant (null if not reviewed yet)
+ */
+export async function getUserReview(client: SupabaseClient, userId: string, restaurantId: string) {
+    const { data, error } = await client
+        .from('reviews')
+        .select('*')
+        .eq('user_id', userId)
+        .eq('restaurant_id', restaurantId)
+        .maybeSingle();
+
+    if (error) throw error;
+    return data;
+}
+
+/**
+ * Submit or update a review for a restaurant (upsert — one review per user per restaurant)
+ */
+export async function submitReview(
+    client: SupabaseClient,
+    { restaurantId, userId, rating, comment }: { restaurantId: string; userId: string; rating: number; comment: string }
+) {
+    const { data, error } = await client
+        .from('reviews')
+        .upsert(
+            { restaurant_id: restaurantId, user_id: userId, rating, comment, updated_at: new Date().toISOString() },
+            { onConflict: 'restaurant_id,user_id' }
+        )
+        .select()
+        .single();
+
+    if (error) throw error;
+    return data;
+}
+
+
+/**
  * Get user's favorite restaurants
  */
 export async function getUserFavorites(client: SupabaseClient, userId: string) {
