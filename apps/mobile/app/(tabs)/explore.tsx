@@ -194,7 +194,7 @@ function MapPin({ selected }: { selected: boolean }) {
                 <Image 
                     source={require('../../assets/logo.png')} 
                     style={[styles.pinImage, selected && styles.pinImageSelected]}
-                    resizeMode="cover"
+                    resizeMode="contain"
                 />
             </View>
         </View>
@@ -259,11 +259,11 @@ const styles = StyleSheet.create({
         borderTopRightRadius: 20,
         borderBottomLeftRadius: 20,
         borderBottomRightRadius: 6,
-        backgroundColor: '#fff',
+        backgroundColor: '#00C96B',
         alignItems: 'center',
         justifyContent: 'center',
         borderWidth: 2.5,
-        borderColor: '#00C96B',
+        borderColor: '#fff',
         shadowColor: '#00C96B',
         shadowOpacity: 0.5,
         shadowRadius: 6,
@@ -284,12 +284,14 @@ const styles = StyleSheet.create({
         shadowRadius: 10,
     },
     pinImage: {
-        width: '100%',
-        height: '100%',
-        transform: [{ rotate: '-45deg' }], // Counter-rotate the image so it's upright
+        width: 38,
+        height: 38,
+        transform: [{ rotate: '-45deg' }, { scale: 1.15 }],
     },
     pinImageSelected: {
-        // No additional styles needed for selected image, it inherits width/height 100%
+        width: 48,
+        height: 48,
+        transform: [{ rotate: '-45deg' }, { scale: 1.25 }],
     },
     pinPulse: {
         position: 'absolute',
