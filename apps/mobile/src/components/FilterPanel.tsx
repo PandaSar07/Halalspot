@@ -60,10 +60,10 @@ export function countActiveFilters(f: FilterState): number {
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 const CUISINES = [
-    'American', 'Italian', 'Mexican', 'Chinese', 'Japanese',
-    'Indian', 'Mediterranean', 'Thai', 'French', 'Korean',
-    'Vegan/Vegetarian', 'Middle Eastern', 'Pakistani', 'Seafood',
-    'BBQ', 'Caribbean', 'Lebanese', 'Bangladeshi',
+    'Indian', 'Pakistani', 'Lebanese', 'Mediterranean', 'Middle Eastern',
+    'Turkish', 'Yemeni', 'Afghan', 'American', 'Italian',
+    'Chinese', 'West African', 'North African', 'Asian Fusion',
+    'Israeli', 'Uyghur',
 ];
 
 const PRICES = ['$', '$$', '$$$'];

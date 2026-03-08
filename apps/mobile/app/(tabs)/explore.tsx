@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import {
-    View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Dimensions,
+    View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Dimensions, Image
 } from 'react-native';
 import MapView, { Marker, PROVIDER_DEFAULT, MapMarker } from 'react-native-maps';
 import { Ionicons } from '@expo/vector-icons';
@@ -145,6 +145,7 @@ export default function MapScreen() {
                             coordinate={{ latitude: lat, longitude: lng }}
                             onPress={() => handleMarkerPress(r)}
                             tracksViewChanges={false}
+                            anchor={{ x: 0.5, y: 1 }}
                         >
                             <MapPin selected={selectedRestaurant?.id === r.id} />
                         </Marker>
@@ -187,9 +188,15 @@ export default function MapScreen() {
 /** Custom map pin in halal green */
 function MapPin({ selected }: { selected: boolean }) {
     return (
-        <View style={[styles.pin, selected && styles.pinSelected]}>
-            <Ionicons name="restaurant" size={14} color="#fff" />
+        <View style={styles.pinWrapper}>
             {selected && <View style={styles.pinPulse} />}
+            <View style={[styles.pin, selected && styles.pinSelected]}>
+                <Image 
+                    source={require('../../assets/logo.png')} 
+                    style={[styles.pinImage, selected && styles.pinImageSelected]}
+                    resizeMode="contain"
+                />
+            </View>
         </View>
     );
 }
@@ -240,10 +247,18 @@ const styles = StyleSheet.create({
         shadowOffset: { width: 0, height: 3 },
         elevation: 5,
     },
+    pinWrapper: {
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: 5,
+    },
     pin: {
-        width: 34,
-        height: 34,
-        borderRadius: 17,
+        width: 40,
+        height: 40,
+        borderTopLeftRadius: 20,
+        borderTopRightRadius: 20,
+        borderBottomLeftRadius: 20,
+        borderBottomRightRadius: 6,
         backgroundColor: '#00C96B',
         alignItems: 'center',
         justifyContent: 'center',
@@ -254,20 +269,35 @@ const styles = StyleSheet.create({
         shadowRadius: 6,
         shadowOffset: { width: 0, height: 2 },
         elevation: 6,
+        transform: [{ rotate: '45deg' }],
+        overflow: 'hidden',
     },
     pinSelected: {
-        width: 42,
-        height: 42,
-        borderRadius: 21,
-        backgroundColor: '#00A855',
+        width: 50,
+        height: 50,
+        borderTopLeftRadius: 25,
+        borderTopRightRadius: 25,
+        borderBottomLeftRadius: 25,
+        borderBottomRightRadius: 8,
+        borderColor: '#00A855',
         shadowOpacity: 0.7,
         shadowRadius: 10,
     },
+    pinImage: {
+        width: 38,
+        height: 38,
+        transform: [{ rotate: '-45deg' }, { scale: 1.15 }],
+    },
+    pinImageSelected: {
+        width: 48,
+        height: 48,
+        transform: [{ rotate: '-45deg' }, { scale: 1.25 }],
+    },
     pinPulse: {
         position: 'absolute',
-        width: 56,
-        height: 56,
-        borderRadius: 28,
+        width: 64,
+        height: 64,
+        borderRadius: 32,
         borderWidth: 2,
         borderColor: 'rgba(0, 201, 107, 0.4)',
     },

@@ -173,8 +173,14 @@ export default function HomeScreen() {
             setTotalSpots(total || 0);
             let all: RestaurantWithDistance[] = [];
             try {
-                all = await getNearbyRestaurants(supabase, coords, 15000);
+                // Use an 80 km radius so restaurants show regardless of exact device location
+                all = await getNearbyRestaurants(supabase, coords, 80000);
             } catch {
+                /* RPC unavailable – fall through */
+            }
+            // If RPC returned too few results (device far from Philly, or RPC error),
+            // load all approved restaurants as a reliable fallback.
+            if (all.length < 5) {
                 const { data } = await supabase.from('restaurants').select('*').eq('status', 'approved');
                 all = (data || []) as RestaurantWithDistance[];
             }
