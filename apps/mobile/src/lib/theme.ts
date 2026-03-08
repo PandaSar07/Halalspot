@@ -21,7 +21,6 @@ export const DarkTheme = {
     textSecondary: '#9A9A9A',
     textMuted: '#555555',
     border: '#2A2A2A',
-    borderLight: '#333333',
     heroBg: ['#0F2018', '#0F0F0F'] as const,
     tabBar: '#141414',
     tabBorder: '#2A2A2A',
@@ -46,7 +45,7 @@ export const LightTheme = {
     statusBar: 'dark' as const,
 };
 
-export type AppTheme = typeof DarkTheme;
+export type AppTheme = typeof DarkTheme | typeof LightTheme;
 
 // Legacy export for backwards compat
 export const Colors = DarkTheme;

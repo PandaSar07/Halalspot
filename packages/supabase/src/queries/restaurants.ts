@@ -16,7 +16,7 @@ export async function getNearbyRestaurants(
     });
 
     if (error) throw error;
-    return data || [];
+    return (data as unknown as RestaurantWithDistance[]) || [];
 }
 
 /**
@@ -159,7 +159,7 @@ export async function getMenuCategories(
         .eq('restaurant_id', restaurantId);
 
     if (error) throw error;
-    const categories = [...new Set((data || []).map((r: any) => String(r.category)))];
+    const categories = [...new Set<string>((data || []).map((r: any) => String(r.category)))];
 
     return ['Most Ordered', ...categories.filter(c => c !== 'Most Ordered'), 'Deals'];
 }
