@@ -248,6 +248,7 @@ export default function RestaurantBottomSheet({ restaurant, onClose, snapHeight 
                                         // Slight delay so the modal can close smoothly before navigating
                                         setTimeout(() => router.push('/(tabs)/explore'), 300);
                                     }}
+                                    accessibilityLabel="Show on Map"
                                 >
                                     <Ionicons name="location-outline" size={12} color={theme.textSecondary} />
                                     <Text style={[styles.pillText, { color: theme.textSecondary }]}>

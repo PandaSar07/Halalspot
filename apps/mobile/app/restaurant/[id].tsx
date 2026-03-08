@@ -143,7 +143,9 @@ export default function RestaurantDetailPage() {
                             <TouchableOpacity
                                 style={styles.heroBtn}
                                 onPress={() => {
-                                    setHighlightedRestaurantId(id!);
+                                    if (setHighlightedRestaurantId) {
+                                        setHighlightedRestaurantId(id!);
+                                    }
                                     router.push('/(tabs)/explore');
                                 }}
                                 accessibilityLabel="Show on Map"
