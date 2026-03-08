@@ -117,6 +117,9 @@ importers:
       expo-status-bar:
         specifier: ~3.0.9
         version: 3.0.9(react-native@0.81.5)(react@19.1.0)
+      expo-web-browser:
+        specifier: ~15.0.10
+        version: 15.0.10(expo@54.0.33)(react-native@0.81.5)
       react:
         specifier: 19.1.0
         version: 19.1.0
@@ -6046,6 +6049,16 @@ packages:
       react: 19.2.4
       react-native: 0.81.6(@babel/core@7.29.0)(@types/react@19.1.17)(react@19.2.4)
       react-native-is-edge-to-edge: 1.2.1(react-native@0.81.6)(react@19.2.4)
+    dev: false
+
+  /expo-web-browser@15.0.10(expo@54.0.33)(react-native@0.81.5):
+    resolution: {integrity: sha512-fvDhW4bhmXAeWFNFiInmsGCK83PAqAcQaFyp/3pE/jbdKmFKoRCWr46uZGIfN4msLK/OODhaQ/+US7GSJNDHJg==}
+    peerDependencies:
+      expo: '*'
+      react-native: '*'
+    dependencies:
+      expo: 54.0.33(@babel/core@7.29.0)(@expo/metro-runtime@6.1.2)(expo-router@6.0.23)(react-native@0.81.5)(react@19.1.0)
+      react-native: 0.81.5(@babel/core@7.29.0)(@types/react@19.1.17)(react@19.1.0)
     dev: false
 
   /expo@54.0.33(@babel/core@7.29.0)(@expo/metro-runtime@6.1.2)(expo-router@6.0.23)(react-native@0.81.5)(react@19.1.0):
