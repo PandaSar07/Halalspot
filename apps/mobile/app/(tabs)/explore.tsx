@@ -5,7 +5,6 @@ import {
 import MapView, { Marker, PROVIDER_DEFAULT, MapMarker } from 'react-native-maps';
 import { Ionicons } from '@expo/vector-icons';
 import * as Location from 'expo-location';
-import { useFocusEffect } from 'expo-router';
 import { supabase } from '../../src/lib/supabase';
 import { getNearbyRestaurants } from '@halalspot/supabase';
 import { useTheme } from '../../src/lib/ThemeContext';
@@ -71,7 +70,7 @@ export default function MapScreen() {
                 }
                 let data: RestaurantWithDistance[] = [];
                 try {
-                    data = await getNearbyRestaurants(supabase, coords, 50000);
+                    data = await getNearbyRestaurants(supabase, coords, 80000);
                 } catch {
                     // Fallback: fetch all approved restaurants with coordinates extracted from PostGIS
                     const { data: fallback } = await (supabase as any)
@@ -99,8 +98,8 @@ export default function MapScreen() {
         );
     }, [restaurants, searchQuery]);
 
-    // Handle "Show on Map" navigation — fires each time screen comes into focus
-    useFocusEffect(useCallback(() => {
+    // Handle "Show on Map" navigation — fires when context or restaurants load
+    useEffect(() => {
         if (!highlightedRestaurantId || restaurants.length === 0) return;
         const target = restaurants.find(r => r.id === highlightedRestaurantId);
         if (!target) return;
@@ -117,7 +116,7 @@ export default function MapScreen() {
         // Auto-open bottom sheet
         setSelectedRestaurant(target);
         setHighlightedRestaurantId(null);
-    }, [highlightedRestaurantId, restaurants]));
+    }, [highlightedRestaurantId, restaurants]);
 
     const handleMarkerPress = useCallback((r: RestaurantWithDistance) => {
         setSelectedRestaurant(r);

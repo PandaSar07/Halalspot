@@ -245,8 +245,7 @@ export default function RestaurantBottomSheet({ restaurant, onClose, snapHeight 
                                             setHighlightedRestaurantId(restaurant.id);
                                         }
                                         dismiss();
-                                        // Slight delay so the modal can close smoothly before navigating
-                                        setTimeout(() => router.push('/(tabs)/explore'), 300);
+                                        router.push('/(tabs)/explore');
                                     }}
                                     accessibilityLabel="Show on Map"
                                 >
