@@ -146,6 +146,7 @@ export default function LandingScreen() {
                             resizeMode="contain"
                         />
                     </View>
+                    <View style={styles.pinTip} />
                 </Animated.View>
 
                 {/* Drop shadow */}
@@ -262,32 +263,37 @@ const styles = StyleSheet.create({
     },
     pinWrapper: {
         alignItems: 'center',
+        shadowColor: '#00C96B',
+        shadowOffset: { width: 0, height: 6 },
+        shadowOpacity: 0.5,
+        shadowRadius: 16,
+        elevation: 12,
+        marginBottom: 8,
     },
     pinBg: {
         width: 76,
         height: 76,
+        borderRadius: 38,
         backgroundColor: '#00C96B',
-        // Make it a teardrop pin shape pointing to bottom-right
-        borderTopLeftRadius: 38,
-        borderTopRightRadius: 38,
-        borderBottomLeftRadius: 38,
-        borderBottomRightRadius: 6, // Slight rounding on the sharp tip
-        // Rotate 45deg so the bottom-right tip points straight down
-        transform: [{ rotate: '45deg' }],
         alignItems: 'center',
         justifyContent: 'center',
-        shadowColor: '#00C96B',
-        shadowOffset: { width: -2, height: 2 }, // Adjust shadow since we rotated
-        shadowOpacity: 0.6,
-        shadowRadius: 16,
-        elevation: 12,
-        marginBottom: 8, // Little bit of space equivalent to the old tip
+        zIndex: 2,
     },
     pinLogo: {
         width: 66,
         height: 66,
-        // Counter-rotate the logo so it sits upright
-        transform: [{ rotate: '-45deg' }],
+    },
+    pinTip: {
+        width: 0,
+        height: 0,
+        borderLeftWidth: 16,
+        borderRightWidth: 16,
+        borderTopWidth: 26,
+        borderLeftColor: 'transparent',
+        borderRightColor: 'transparent',
+        borderTopColor: '#00C96B',
+        marginTop: -6, // Tucks gracefully under the circle
+        zIndex: 1,
     },
 
     pinShadow: {
