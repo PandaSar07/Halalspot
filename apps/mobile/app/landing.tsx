@@ -146,7 +146,6 @@ export default function LandingScreen() {
                             resizeMode="contain"
                         />
                     </View>
-                    <View style={styles.pinTip} />
                 </Animated.View>
 
                 {/* Drop shadow */}
@@ -265,33 +264,32 @@ const styles = StyleSheet.create({
         alignItems: 'center',
     },
     pinBg: {
-        width: 60,  // Reduced from 72 to 60 for a tighter wrap
-        height: 60, // Reduced from 72 to 60
-        borderRadius: 30, // Half of width/height
+        width: 62,
+        height: 62,
+        backgroundColor: '#00C96B',
+        // Make it a teardrop pin shape pointing to bottom-right
+        borderTopLeftRadius: 31,
+        borderTopRightRadius: 31,
+        borderBottomLeftRadius: 31,
+        borderBottomRightRadius: 4, // Slight rounding on the sharp tip
+        // Rotate 45deg so the bottom-right tip points straight down
+        transform: [{ rotate: '45deg' }],
         alignItems: 'center',
         justifyContent: 'center',
-        backgroundColor: '#00C96B',
         shadowColor: '#00C96B',
-        shadowOffset: { width: 0, height: 4 },
+        shadowOffset: { width: -2, height: 2 }, // Adjust shadow since we rotated
         shadowOpacity: 0.6,
         shadowRadius: 16,
         elevation: 12,
+        marginBottom: 8, // Little bit of space equivalent to the old tip
     },
     pinLogo: {
-        width: 48,  // Scaled down slightly to fit the new tighter container
-        height: 48,
+        width: 44,
+        height: 44,
+        // Counter-rotate the logo so it sits upright
+        transform: [{ rotate: '-45deg' }],
     },
-    pinTip: {
-        width: 0,
-        height: 0,
-        borderLeftWidth: 8,   // Reduced from 10 to 8 for a sharper point
-        borderRightWidth: 8,  // Reduced from 10 to 8
-        borderTopWidth: 16,   // Reduced from 18 to 16
-        borderLeftColor: 'transparent',
-        borderRightColor: 'transparent',
-        borderTopColor: '#00C96B',
-        marginTop: -3,        // Pulled up slightly to ensure no gap
-    },
+
     pinShadow: {
         width: 48,
         height: 10,
