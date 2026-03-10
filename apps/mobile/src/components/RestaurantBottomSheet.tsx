@@ -51,8 +51,8 @@ export default function RestaurantBottomSheet({ restaurant, onClose, snapHeight 
     const overlayOpacity = useRef(new Animated.Value(0)).current;
     const dragY = useRef(new Animated.Value(0)).current;
 
-    const [activeTab, setActiveTab] = useState('Most Ordered');
-    const [categories, setCategories] = useState<string[]>(['Most Ordered', 'Deals']);
+    const [activeTab, setActiveTab] = useState('Menu');
+    const [categories, setCategories] = useState<string[]>(['Menu', 'Deals']);
     const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
     const [menuLoading, setMenuLoading] = useState(false);
     const [isFavorite, setIsFavorite] = useState(false);
@@ -64,7 +64,7 @@ export default function RestaurantBottomSheet({ restaurant, onClose, snapHeight 
     // Slide in on mount
     useEffect(() => {
         if (!restaurant) return;
-        setActiveTab('Most Ordered');
+        setActiveTab('Menu');
         loadMenu();
         loadFavoriteStatus();
         translateY.setValue(SHEET_HEIGHT);
@@ -105,7 +105,7 @@ export default function RestaurantBottomSheet({ restaurant, onClose, snapHeight 
                 getMenuCategories(supabase, restaurant.id),
                 getMenuItems(supabase, restaurant.id),
             ]);
-            setCategories(cats.length > 0 ? cats : ['Most Ordered', 'Deals']);
+            setCategories(cats.length > 0 ? cats : ['Menu', 'Deals']);
             setMenuItems(items as MenuItem[]);
         } catch (e) {
             console.error('Menu error:', e);
@@ -173,8 +173,8 @@ export default function RestaurantBottomSheet({ restaurant, onClose, snapHeight 
 
     const filteredItems = activeTab === 'Deals'
         ? menuItems.filter(i => i.is_deal)
-        : activeTab === 'Most Ordered'
-            ? menuItems.slice(0, 8)
+        : activeTab === 'Menu'
+            ? menuItems
             : menuItems.filter(i => i.category === activeTab);
 
     if (!restaurant) return null;

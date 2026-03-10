@@ -197,5 +197,5 @@ export async function getMenuCategories(
     if (error) throw error;
     const categories = [...new Set<string>((data || []).map((r: any) => String(r.category)))];
 
-    return ['Most Ordered', ...categories.filter(c => c !== 'Most Ordered'), 'Deals'];
+    return ['Menu', ...categories.filter(c => c !== 'Most Ordered' && c !== 'Menu'), 'Deals'];
 }

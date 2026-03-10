@@ -47,11 +47,10 @@ export default function RestaurantDetailPage() {
     const { setHighlightedRestaurantId } = useMapContext();
     const [restaurant, setRestaurant] = useState<any>(null);
     const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
-    const [categories, setCategories] = useState<string[]>(['Most Ordered', 'Deals', 'Reviews']);
-    const [activeTab, setActiveTab] = useState('Most Ordered');
+    const [categories, setCategories] = useState<string[]>(['Menu', 'Deals']);
+    const [activeTab, setActiveTab] = useState('Menu');
     const [reviews, setReviews] = useState<Review[]>([]);
     const [loading, setLoading] = useState(true);
-    const [deliveryMode, setDeliveryMode] = useState<'delivery' | 'pickup'>('delivery');
     const [isFavorite, setIsFavorite] = useState(false);
     const [userId, setUserId] = useState<string | null>(null);
     const [userExistingReview, setUserExistingReview] = useState<any>(null);
@@ -78,8 +77,8 @@ export default function RestaurantDetailPage() {
             ]);
             setRestaurant(rest);
             setMenuItems(items as MenuItem[]);
-            const tabList = cats.length > 0 ? cats : ['Most Ordered', 'Deals'];
-            if (!tabList.includes('Reviews')) tabList.push('Reviews');
+            const tabList = cats.length > 0 ? cats : ['Menu', 'Deals'];
+            // Reviews never go in the tab bar — accessible via rating chip
             setCategories(tabList);
             setReviews(revs as Review[]);
             setIsFavorite(favorited);
@@ -137,8 +136,8 @@ export default function RestaurantDetailPage() {
 
     const filteredItems = activeTab === 'Deals'
         ? menuItems.filter(i => i.is_deal)
-        : activeTab === 'Most Ordered'
-            ? menuItems.slice(0, 10)
+        : activeTab === 'Menu'
+            ? menuItems
             : activeTab === 'Reviews'
                 ? []
                 : menuItems.filter(i => i.category === activeTab);
@@ -209,10 +208,7 @@ export default function RestaurantDetailPage() {
                         {restaurant.avg_rating > 0 && (
                             <TouchableOpacity
                                 style={styles.ratingChip}
-                                onPress={() => {
-                                    const idx = categories.indexOf('Reviews');
-                                    if (idx >= 0) handleTabChange('Reviews', idx);
-                                }}
+                                onPress={() => setReviewModalVisible(true)}
                             >
                                 <Ionicons name="star" size={13} color="#F5C842" />
                                 <Text style={[styles.ratingText, { color: theme.textPrimary }]}>{restaurant.avg_rating.toFixed(1)}</Text>
@@ -251,64 +247,41 @@ export default function RestaurantDetailPage() {
                     </TouchableOpacity>
                 </View>
 
-                {/* ── Delivery Toggle ── */}
-                <View style={[styles.deliveryToggle, { backgroundColor: theme.bgCard, borderBottomColor: theme.border }]}>
-                    {(['delivery', 'pickup'] as const).map(mode => (
-                        <TouchableOpacity
-                            key={mode}
-                            style={[styles.deliveryBtn, deliveryMode === mode && styles.deliveryBtnActive]}
-                            onPress={() => setDeliveryMode(mode)}
-                        >
-                            <Text style={[styles.deliveryBtnText, deliveryMode === mode && { color: '#00C96B', fontFamily: 'Outfit-Bold' }]}>
-                                {mode.charAt(0).toUpperCase() + mode.slice(1)}
-                            </Text>
-                        </TouchableOpacity>
-                    ))}
-                    <View style={[styles.deliveryInfo, { borderLeftColor: theme.border }]}>
-                        <Text style={[styles.deliveryInfoText, { color: theme.textSecondary }]}>Free · 25–35 min</Text>
-                    </View>
-                </View>
 
                 {/* ── Sticky Tab Bar ── */}
                 <View style={[styles.tabBar, { backgroundColor: theme.bgCard, borderBottomColor: theme.border }]}>
-                    {categories.slice(0, 4).map((tab, i) => (
-                        <TouchableOpacity key={tab} style={styles.tab} onPress={() => handleTabChange(tab, i)}>
-                            <Text style={[styles.tabText, { color: activeTab === tab ? '#00C96B' : theme.textSecondary }, activeTab === tab && styles.tabTextActive]}>
-                                {tab}
-                            </Text>
-                        </TouchableOpacity>
-                    ))}
+                    <View style={styles.tabRow}>
+                        {categories.slice(0, 4).map((tab, i) => (
+                            <TouchableOpacity
+                                key={tab}
+                                style={[styles.tab, { width: width / Math.min(categories.length, 4) }]}
+                                onPress={() => handleTabChange(tab, i)}
+                            >
+                                <Text style={[styles.tabText, { color: activeTab === tab ? '#00C96B' : theme.textSecondary }, activeTab === tab && styles.tabTextActive]}>
+                                    {tab}
+                                </Text>
+                            </TouchableOpacity>
+                        ))}
+                    </View>
                     <RNAnimated.View style={[styles.tabIndicator, { width: width / Math.min(categories.length, 4), transform: [{ translateX: tabIndicator }] }]} />
                 </View>
 
-                {/* ── Content: Menu or Reviews ── */}
-                {activeTab === 'Reviews' ? (
-                    <ReviewsSection
-                        reviews={reviews}
-                        theme={theme}
-                        userId={userId}
-                        userExistingReview={userExistingReview}
-                        onWriteReview={() => setReviewModalVisible(true)}
-                        avgRating={restaurant.avg_rating}
-                        insets={insets}
-                    />
-                ) : (
-                    <View style={styles.menuList}>
-                        {filteredItems.length === 0 ? (
-                            <View style={styles.menuEmpty}>
-                                <Ionicons name="restaurant-outline" size={40} color={theme.textMuted} />
-                                <Text style={[styles.menuEmptyText, { color: theme.textMuted }]}>
-                                    {activeTab === 'Deals' ? 'No active deals right now' : 'Menu items coming soon'}
-                                </Text>
-                            </View>
-                        ) : (
-                            filteredItems.map(item => (
-                                <FullMenuItemCard key={item.id} item={item} theme={theme} />
-                            ))
-                        )}
-                        <View style={{ height: 40 + insets.bottom }} />
-                    </View>
-                )}
+                {/* ── Content: Menu or Deals ── */}
+                <View style={styles.menuList}>
+                    {filteredItems.length === 0 ? (
+                        <View style={styles.menuEmpty}>
+                            <Ionicons name="restaurant-outline" size={40} color={theme.textMuted} />
+                            <Text style={[styles.menuEmptyText, { color: theme.textMuted }]}>
+                                {activeTab === 'Deals' ? 'No active deals right now' : 'Menu items coming soon'}
+                            </Text>
+                        </View>
+                    ) : (
+                        filteredItems.map(item => (
+                            <FullMenuItemCard key={item.id} item={item} theme={theme} />
+                        ))
+                    )}
+                    <View style={{ height: 40 + insets.bottom }} />
+                </View>
             </ScrollView>
 
             {/* ── Write Review Modal ── */}
@@ -621,17 +594,11 @@ const styles = StyleSheet.create({
     infoChip: { flex: 1, alignItems: 'center', paddingVertical: 12, gap: 4 },
     infoChipText: { fontSize: 11, fontFamily: 'Outfit-SemiBold' },
 
-    // Delivery toggle
-    deliveryToggle: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1, gap: 8 },
-    deliveryBtn: { paddingHorizontal: 16, paddingVertical: 8, borderRadius: 100 },
-    deliveryBtnActive: { backgroundColor: '#00C96B20' },
-    deliveryBtnText: { fontSize: 14, fontFamily: 'Outfit-SemiBold', color: '#9CA3AF' },
-    deliveryInfo: { flex: 1, alignItems: 'flex-end', borderLeftWidth: 1, paddingLeft: 16 },
-    deliveryInfoText: { fontSize: 13, fontFamily: 'Outfit' },
 
     // Tab bar
-    tabBar: { flexDirection: 'row', borderBottomWidth: 2, position: 'relative' },
-    tab: { flex: 1, paddingVertical: 14, alignItems: 'center' },
+    tabBar: { borderBottomWidth: 2, position: 'relative', width: '100%' },
+    tabRow: { flexDirection: 'row' },
+    tab: { paddingVertical: 14, alignItems: 'center' },
     tabText: { fontSize: 13, fontFamily: 'Outfit-SemiBold' },
     tabTextActive: { fontFamily: 'Outfit-Bold' },
     tabIndicator: { position: 'absolute', bottom: -2, height: 3, backgroundColor: '#00C96B', borderRadius: 2 },

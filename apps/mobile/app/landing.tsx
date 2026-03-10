@@ -16,7 +16,7 @@ import { useRouter } from 'expo-router';
 import { useTheme } from '../src/lib/ThemeContext';
 import { useAuth } from '../src/lib/AuthContext';
 
-const { height: SCREEN_HEIGHT } = Dimensions.get('window');
+const { height: SCREEN_HEIGHT, width: SCREEN_WIDTH } = Dimensions.get('window');
 
 export default function LandingScreen() {
     const { theme } = useTheme();
@@ -115,16 +115,20 @@ export default function LandingScreen() {
     };
 
     return (
-        <LinearGradient
-            colors={['#071A10', '#0D2B1A', '#0F0F0F']}
-            style={styles.container}
-            start={{ x: 0.3, y: 0 }}
-            end={{ x: 0.7, y: 1 }}
-        >
-            {/* Radial glow */}
-            <View style={styles.glowContainer} pointerEvents="none">
-                <View style={styles.glow} />
-            </View>
+        <View style={styles.container}>
+            {/* Islamic pattern background */}
+            <Image
+                source={require('../assets/islamic_hero_bg.png')}
+                style={styles.bgPattern}
+                resizeMode="cover"
+            />
+            {/* Dark gradient overlay */}
+            <LinearGradient
+                colors={['rgba(7,26,16,0.82)', 'rgba(13,43,26,0.90)', 'rgba(15,15,15,0.97)']}
+                style={StyleSheet.absoluteFillObject}
+                start={{ x: 0.3, y: 0 }}
+                end={{ x: 0.7, y: 1 }}
+            />
 
             {/* Pin drop zone */}
             <View style={styles.pinContainer}>
@@ -139,13 +143,11 @@ export default function LandingScreen() {
                         },
                     ]}
                 >
-                    <View style={styles.pinBg}>
-                        <Image
+                    <Image
                             source={require('../assets/logo.png')}
                             style={styles.pinLogo}
                             resizeMode="contain"
                         />
-                    </View>
                 </Animated.View>
 
                 {/* Drop shadow */}
@@ -232,7 +234,7 @@ export default function LandingScreen() {
                     </TouchableOpacity>
                 </View>
             </Animated.View>
-        </LinearGradient>
+        </View>
     );
 }
 
@@ -242,17 +244,13 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         justifyContent: 'center',
     },
-    glowContainer: {
-        ...StyleSheet.absoluteFillObject,
-        alignItems: 'center',
-        justifyContent: 'center',
-    },
-    glow: {
-        width: 300,
-        height: 300,
-        borderRadius: 150,
-        top: SCREEN_HEIGHT * 0.15,
-        backgroundColor: 'rgba(0,201,107,0.12)',
+    bgPattern: {
+        position: 'absolute',
+        width: SCREEN_WIDTH * 1.5,
+        height: SCREEN_WIDTH * 1.5,
+        top: -SCREEN_WIDTH * 0.1,
+        left: -SCREEN_WIDTH * 0.25,
+        opacity: 0.25,
     },
     pinContainer: {
         alignItems: 'center',
@@ -263,31 +261,9 @@ const styles = StyleSheet.create({
     pinWrapper: {
         alignItems: 'center',
     },
-    pinBg: {
-        width: 76,
-        height: 76,
-        backgroundColor: '#00C96B',
-        // Make it a teardrop pin shape pointing to bottom-right
-        borderTopLeftRadius: 38,
-        borderTopRightRadius: 38,
-        borderBottomLeftRadius: 38,
-        borderBottomRightRadius: 6, // Slight rounding on the sharp tip
-        // Rotate 45deg so the bottom-right tip points straight down
-        transform: [{ rotate: '45deg' }],
-        alignItems: 'center',
-        justifyContent: 'center',
-        shadowColor: '#00C96B',
-        shadowOffset: { width: -2, height: 2 }, // Adjust shadow since we rotated
-        shadowOpacity: 0.6,
-        shadowRadius: 16,
-        elevation: 12,
-        marginBottom: 8, // Little bit of space equivalent to the old tip
-    },
     pinLogo: {
-        width: 66,
-        height: 66,
-        // Counter-rotate the logo so it sits upright
-        transform: [{ rotate: '-45deg' }],
+        width: 90,
+        height: 90,
     },
 
     pinShadow: {

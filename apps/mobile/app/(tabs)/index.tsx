@@ -259,11 +259,34 @@ export default function HomeScreen() {
                 onScroll={handleScroll}
                 scrollEventThrottle={16}
             >
+                {/* Hero Background (Scrolls away) */}
+                <View style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 600, overflow: 'hidden', alignItems: 'center' }}>
+                    {!theme.isDark && (
+                        <LinearGradient
+                            colors={theme.heroBg}
+                            style={{ position: 'absolute', top: 0, left: 0, right: 0, height: '100%' }}
+                            start={{ x: 0.5, y: 0 }}
+                            end={{ x: 0.5, y: 1 }}
+                        />
+                    )}
+                    <Image
+                        source={require('../../assets/islamic_hero_bg.png')}
+                        style={{ width: width * 1.5, height: width * 1.5, position: 'absolute', top: -100, opacity: theme.isDark ? 0.15 : 0.08 }}
+                        resizeMode="cover"
+                    />
+                    <LinearGradient
+                        colors={['transparent', theme.bg]}
+                        style={{ width: '100%', height: '100%', position: 'absolute' }}
+                        start={{ x: 0.5, y: 0.3 }}
+                        end={{ x: 0.5, y: 1 }}
+                    />
+                </View>
+
                 {/* Hero */}
-                <LinearGradient colors={theme.heroBg} style={styles.hero}>
+                <View style={styles.hero}>
                     <View style={styles.heroPill}>
                         <View style={[styles.heroPillDot, { backgroundColor: theme.primary }]} />
-                        <Text style={[styles.heroPillText, { color: theme.primary }]}>{totalSpots} Spots in Philly</Text>
+                        <Text style={[styles.heroPillText, { color: theme.isDark ? theme.primary : '#fff' }]}>{totalSpots} Spots in Philly</Text>
                     </View>
                     <View style={styles.heroLogoLockup}>
                         <Image source={require('../../assets/logo.png')} style={styles.heroLogoImg} resizeMode="contain" />
@@ -282,7 +305,7 @@ export default function HomeScreen() {
                         </TouchableOpacity>
                         <FilterButton />
                     </View>
-                </LinearGradient>
+                </View>
 
                 {/* Quick Search Chips */}
                 <QuickSearchChips
@@ -370,48 +393,67 @@ function QuickSearchChips({
 
     if (cuisines.length === 0) return null;
 
+    const mid = Math.ceil(cuisines.length / 2);
+    const row1 = cuisines.slice(0, mid);
+    const row2 = cuisines.slice(mid);
+
+    const renderChip = (c: string) => {
+        const isActive = activeChip === c;
+        const emoji = CUISINE_EMOJI[c.toLowerCase()] || '🍽';
+        return (
+            <TouchableOpacity
+                key={c}
+                onPress={() => onChipPress(c)}
+                activeOpacity={0.75}
+                style={[
+                    chipStyles.chip,
+                    { 
+                        backgroundColor: isActive ? theme.primary : (theme.isDark ? '#242426' : '#FFFFFF'),
+                        borderColor: isActive ? theme.primary : (theme.isDark ? '#38383A' : '#E8E8E8'),
+                        shadowColor: isActive ? theme.primary : '#000',
+                        shadowOpacity: isActive ? 0.3 : (theme.isDark ? 0.4 : 0.08),
+                    },
+                ]}
+            >
+                <Text style={chipStyles.emoji}>{emoji}</Text>
+                <Text style={[chipStyles.label, { color: isActive ? '#fff' : theme.textPrimary }]}>
+                    {c}
+                </Text>
+            </TouchableOpacity>
+        );
+    };
+
     return (
         <View style={chipStyles.wrapper}>
             <ScrollView
                 horizontal
                 showsHorizontalScrollIndicator={false}
-                contentContainerStyle={chipStyles.row}
+                contentContainerStyle={chipStyles.scrollContent}
             >
-                {cuisines.map(c => {
-                    const isActive = activeChip === c;
-                    const emoji = CUISINE_EMOJI[c.toLowerCase()] || '🍽';
-                    return (
-                        <TouchableOpacity
-                            key={c}
-                            onPress={() => onChipPress(c)}
-                            activeOpacity={0.75}
-                            style={[
-                                chipStyles.chip,
-                                { backgroundColor: isActive ? theme.primary : theme.bgCard, borderColor: isActive ? theme.primary : theme.border },
-                                Shadow.card,
-                            ]}
-                        >
-                            <Text style={chipStyles.emoji}>{emoji}</Text>
-                            <Text style={[chipStyles.label, { color: isActive ? '#fff' : theme.textPrimary }]}>
-                                {c}
-                            </Text>
-                        </TouchableOpacity>
-                    );
-                })}
+                <View style={chipStyles.grid}>
+                    <View style={chipStyles.gridRow}>{row1.map(renderChip)}</View>
+                    <View style={chipStyles.gridRow}>{row2.map(renderChip)}</View>
+                </View>
             </ScrollView>
         </View>
     );
 }
 
 const chipStyles = StyleSheet.create({
-    wrapper: { marginTop: -20, marginBottom: 4 },
-    row: { paddingHorizontal: 20, paddingVertical: 16, gap: 10 },
+    wrapper: { marginTop: -12, marginBottom: 4 },
+    scrollContent: { paddingHorizontal: 20, paddingVertical: 14 },
+    grid: { flexDirection: 'column', gap: 10 },
+    gridRow: { flexDirection: 'row', gap: 8 },
     chip: {
         flexDirection: 'row', alignItems: 'center', gap: 6,
-        paddingHorizontal: 14, paddingVertical: 9,
-        borderRadius: 100, borderWidth: 1,
+        paddingHorizontal: 12, paddingVertical: 8,
+        borderRadius: 12,
+        borderWidth: 1,
+        shadowOffset: { width: 0, height: 2 },
+        shadowRadius: 4,
+        elevation: 3,
     },
-    emoji: { fontSize: 16 },
+    emoji: { fontSize: 20 },
     label: { fontSize: 13, fontFamily: 'Outfit-SemiBold' },
 });
 
